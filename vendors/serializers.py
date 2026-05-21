@@ -112,4 +112,4 @@ class AddProductSerializer(serializers.ModelSerializer):
 class AddVariantSerializer(serializers.ModelSerializer):
     class Meta:
         model  = ProductVariant
-        fields = ['name', 'price', 'stock_quantity', 'is_available']
+        fields = ['name', 'price', 'mrp', 'stock_quantity', 'is_available']
