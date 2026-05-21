@@ -123,12 +123,14 @@ class Cart(models.Model):
     buyer      = models.ForeignKey(User, on_delete=models.CASCADE, related_name='cart_items')
     product    = models.ForeignKey(Product, on_delete=models.CASCADE)
     vendor     = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='cart_items')
+    variant    = models.ForeignKey('vendors.ProductVariant', on_delete=models.SET_NULL, null=True, blank=True)
+    price      = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     quantity   = models.PositiveIntegerField(default=1)
     added_at   = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('buyer', 'product')
+        unique_together = ('buyer', 'product', 'variant')
         ordering        = ['-added_at']
 
     def __str__(self):
@@ -136,7 +138,8 @@ class Cart(models.Model):
 
     @property
     def subtotal(self):
-        return self.product.price * self.quantity
+        p = self.price if self.price else self.product.price
+        return p * self.quantity
 
 
 # ─── COUPON MODEL ─────────────────────────────────────────────────────────────

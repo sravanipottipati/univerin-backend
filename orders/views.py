@@ -332,9 +332,9 @@ def get_cart(request):
         data.append({
             'id':            str(item.id),
             'product_id':    str(item.product.id),
-            'product_name':  item.product.name,
-            'product_price': str(item.product.price),
-            'product_mrp':   str(item.product.mrp) if item.product.mrp else None,
+            'product_name':  f"{item.product.name} ({item.variant.name})" if item.variant else item.product.name,
+            'product_price': str(item.price) if item.price else str(item.product.price),
+            'product_mrp':   str(item.variant.mrp) if item.variant and item.variant.mrp else (str(item.product.mrp) if item.product.mrp else None),
             'product_image': str(item.product.image) if item.product.image else '',
             'product_gst':   str(item.product.gst_percentage),
             'vendor_id':     str(item.vendor.id),
@@ -355,6 +355,8 @@ def get_cart(request):
 def add_to_cart(request):
     product_id = request.data.get('product_id')
     vendor_id  = request.data.get('vendor_id')
+    variant_id = request.data.get('variant_id', None)
+    price      = request.data.get('price', None)
     quantity   = int(request.data.get('quantity', 1))
 
     try:
@@ -372,6 +374,8 @@ def add_to_cart(request):
     )
     if not created:
         cart_item.quantity += quantity
+        if price: cart_item.price = price
+        if variant: cart_item.variant = variant
         cart_item.save()
 
     return Response({
