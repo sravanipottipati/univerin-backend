@@ -279,7 +279,9 @@ class SearchView(APIView):
 
         # ── Products ───────────────────────────────────────────────────────────
         products = Product.objects.filter(is_available=True)
-        if town:
+        if buyer_lat and buyer_lng and 'nearby_ids' in dir():
+            products = products.filter(vendor__id__in=nearby_ids)
+        elif town:
             products = products.filter(vendor__town__icontains=town)
         products = products.filter(name__icontains=q)
 
@@ -447,9 +449,29 @@ class PopularProductsView(APIView):
 
         town     = request.query_params.get('town', '')
         category = request.query_params.get('category', '')
+        buyer_lat = request.query_params.get('lat', None)
+        buyer_lng = request.query_params.get('lng', None)
+        buyer_radius = float(request.query_params.get('radius', 20.0))
 
         vendors = Vendor.objects.filter(status='approved')
-        if town:
+        if buyer_lat and buyer_lng:
+            try:
+                blat = float(buyer_lat)
+                blng = float(buyer_lng)
+                nearby_ids = []
+                for v in vendors:
+                    if v.latitude and v.longitude:
+                        dlat = math.radians(v.latitude - blat)
+                        dlon = math.radians(v.longitude - blng)
+                        a = math.sin(dlat/2)**2 + math.cos(math.radians(blat)) * math.cos(math.radians(v.latitude)) * math.sin(dlon/2)**2
+                        dist = 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+                        if dist <= buyer_radius:
+                            nearby_ids.append(v.id)
+                vendors = vendors.filter(id__in=nearby_ids)
+            except (ValueError, TypeError):
+                if town:
+                    vendors = vendors.filter(town__icontains=town)
+        elif town:
             vendors = vendors.filter(town__icontains=town)
         if category:
             vendors = vendors.filter(category=category)
