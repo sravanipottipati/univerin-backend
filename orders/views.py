@@ -51,7 +51,7 @@ class PlaceOrderView(APIView):
                     id=item['product_id'], vendor=vendor, is_available=True
                 )
                 quantity = int(item['quantity'])
-                price    = product.price
+                price    = float(item.get('price', product.price))
                 total_amount += price * quantity
                 order_items.append({'product': product, 'quantity': quantity, 'price': price})
             except Product.DoesNotExist:
@@ -63,8 +63,8 @@ class PlaceOrderView(APIView):
         # Platform fee
         platform_fee = 10  # flat ₹10
 
-        # Delivery fee slab (default 2-4km = ₹35 until GPS integrated)
-        delivery_fee = 35
+        # Use delivery fee from frontend (slab-based)
+        delivery_fee = float(data.get('delivery_fee', 10))
 
         # Commission rate based on vendor category
         category = vendor.category.lower() if vendor.category else ''
@@ -79,7 +79,9 @@ class PlaceOrderView(APIView):
         commission_amount = round(subtotal * commission_rate / 100, 2)
         gst_on_platform  = round((platform_fee + delivery_fee) * 18 / 100, 2)
         tcs_amount       = round(subtotal * 1 / 100, 2)
-        grand_total      = round(subtotal + platform_fee + delivery_fee + gst_on_platform, 2)
+        platform_fee_gst = round(platform_fee * 1.18)
+        delivery_fee_gst = round(delivery_fee * 1.18) if delivery_fee > 0 else 0
+        grand_total      = round(subtotal + platform_fee_gst + delivery_fee_gst, 2)
 
         order = Order.objects.create(
             buyer=request.user,
