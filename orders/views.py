@@ -53,7 +53,14 @@ class PlaceOrderView(APIView):
                 quantity = int(item['quantity'])
                 price    = float(item.get('price', product.price))
                 total_amount += price * quantity
-                order_items.append({'product': product, 'quantity': quantity, 'price': price})
+                variant = None
+                if item.get('variant_id'):
+                    try:
+                        from vendors.models import ProductVariant
+                        variant = ProductVariant.objects.get(id=item['variant_id'])
+                    except Exception:
+                        pass
+                order_items.append({'product': product, 'quantity': quantity, 'price': price, 'variant': variant})
             except Product.DoesNotExist:
                 return Response(
                     {'error': f"Product {item['product_id']} not found"},
@@ -103,6 +110,7 @@ class PlaceOrderView(APIView):
             OrderItem.objects.create(
                 order=order,
                 product=item['product'],
+                variant=item.get('variant'),
                 quantity=item['quantity'],
                 price=item['price']
             )
