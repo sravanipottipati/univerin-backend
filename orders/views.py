@@ -480,3 +480,30 @@ class ValidateCouponView(APIView):
             'discount': discount,
             'message':  f'Coupon applied! You save ₹{discount}',
         })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_return(request, order_id):
+    try:
+        order = Order.objects.get(id=order_id, buyer=request.user)
+    except Order.DoesNotExist:
+        return Response({'error': 'Order not found'}, status=404)
+    if order.status != 'delivered':
+        return Response({'error': 'Can only return delivered orders'}, status=400)
+    reason  = request.data.get('reason', '')
+    comment = request.data.get('comment', '')
+    if not reason:
+        return Response({'error': 'Please provide a reason'}, status=400)
+    # Create notification for admin
+    Notification.objects.create(
+        user=request.user,
+        title='Return Request Submitted',
+        message=f'Return request for Order #{order.order_number}: {reason}',
+        type='order',
+    )
+    return Response({
+        'message': 'Return request submitted successfully! Refund will be processed in 5-7 business days.',
+        'order_id': str(order.id),
+        'reason': reason,
+    })
