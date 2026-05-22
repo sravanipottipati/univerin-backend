@@ -367,15 +367,23 @@ def add_to_cart(request):
     except Vendor.DoesNotExist:
         return Response({'error': 'Vendor not found'}, status=404)
 
+    variant = None
+    if variant_id:
+        try:
+            from vendors.models import ProductVariant
+            variant = ProductVariant.objects.get(id=variant_id)
+        except Exception:
+            pass
+
     cart_item, created = Cart.objects.get_or_create(
         buyer=request.user,
         product=product,
-        defaults={'vendor': vendor, 'quantity': quantity}
+        variant=variant,
+        defaults={'vendor': vendor, 'quantity': quantity, 'price': price}
     )
     if not created:
         cart_item.quantity += quantity
         if price: cart_item.price = price
-        if variant: cart_item.variant = variant
         cart_item.save()
 
     return Response({
