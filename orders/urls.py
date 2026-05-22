@@ -1,6 +1,6 @@
 from django.urls import path
 from .payment_views import create_payment_order, verify_payment, payment_failed
-from .views import submit_return, (PlaceOrderView, BuyerOrdersView,
+from .views import (submit_return, PlaceOrderView, BuyerOrdersView,
                     VendorOrdersView, UpdateOrderStatusView,
                     OrderDetailView, NotificationListView,
                     MarkNotificationReadView, SubmitReviewView,
