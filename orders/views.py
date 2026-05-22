@@ -343,6 +343,8 @@ def get_cart(request):
             'product_name':  f"{item.product.name} ({item.variant.name})" if item.variant else item.product.name,
             'product_price': str(item.price) if item.price else str(item.product.price),
             'product_mrp':   str(item.variant.mrp) if item.variant and item.variant.mrp else (str(item.product.mrp) if item.product.mrp else None),
+            'variant_id':    str(item.variant.id) if item.variant else None,
+            'base_product_id': str(item.product.id),
             'product_image': str(item.product.image) if item.product.image else '',
             'product_gst':   str(item.product.gst_percentage),
             'vendor_id':     str(item.vendor.id),
