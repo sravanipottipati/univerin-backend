@@ -7,6 +7,18 @@ class OrderItemSerializer(serializers.ModelSerializer):
     product_mrp  = serializers.SerializerMethodField()
 
     def get_product_name(self, obj):
+        # Check if cart item had a variant
+        from orders.models import Cart
+        try:
+            cart_item = Cart.objects.filter(
+                product=obj.product,
+                buyer=obj.order.buyer,
+                variant__isnull=False
+            ).order_by('-added_at').first()
+            if cart_item and cart_item.variant:
+                return f"{obj.product.name} ({cart_item.variant.name})"
+        except Exception:
+            pass
         return obj.product.name
 
     def get_product_mrp(self, obj):
