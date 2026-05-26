@@ -505,7 +505,10 @@ def submit_return(request, order_id):
     comment = request.data.get('comment', '')
     if not reason:
         return Response({'error': 'Please provide a reason'}, status=400)
-    # Create notification for admin
+    if hasattr(order, 'return_request'):
+        return Response({'error': 'Return already submitted for this order'}, status=400)
+    from .models import ReturnRequest
+    ReturnRequest.objects.create(order=order, buyer=request.user, reason=reason, comment=comment)
     Notification.objects.create(
         user=request.user,
         title='Return Request Submitted',

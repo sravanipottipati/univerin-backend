@@ -163,3 +163,14 @@ class Coupon(models.Model):
 
     def __str__(self):
         return f"{self.code} ({self.discount_type} - {self.discount_value})"
+# ─── RETURN REQUEST MODEL ─────────────────────────────────────────────────────
+class ReturnRequest(models.Model):
+    id         = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order      = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='return_request')
+    buyer      = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    reason     = models.CharField(max_length=255)
+    comment    = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Return for {self.order.order_number}"

@@ -47,12 +47,16 @@ class OrderSerializer(serializers.ModelSerializer):
     buyer_name = serializers.CharField(source='buyer.full_name', read_only=True)
     shop_name = serializers.CharField(source='vendor.shop_name', read_only=True)
     has_review = serializers.SerializerMethodField()
+    has_return = serializers.SerializerMethodField()
 
     def get_has_review(self, obj):
         return hasattr(obj, 'review')
+
+    def get_has_return(self, obj):
+        return hasattr(obj, 'return_request')
 
     class Meta:
         model = Order
         fields = ['id', 'order_number', 'buyer_name', 'shop_name', 'vendor_id', 'status', 'total_amount',
                   'platform_fee', 'delivery_fee', 'delivery_address', 'instructions',
-                  'payment_mode', 'gst_on_platform', 'subtotal', 'items', 'created_at', 'updated_at', 'has_review']
+                  'payment_mode', 'gst_on_platform', 'subtotal', 'items', 'created_at', 'updated_at', 'has_review', 'has_return']
