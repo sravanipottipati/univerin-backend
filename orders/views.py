@@ -52,7 +52,9 @@ class PlaceOrderView(APIView):
                 )
                 quantity = int(item['quantity'])
                 price    = float(item.get('price', product.price))
-                total_amount += price * quantity
+                gst_rate = float(product.gst_percentage or 0) / 100
+                price_with_gst = price * (1 + gst_rate)
+                total_amount += price_with_gst * quantity
                 variant = None
                 if item.get('variant_id'):
                     try:
