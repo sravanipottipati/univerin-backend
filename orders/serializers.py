@@ -5,6 +5,7 @@ from vendors.serializers import ProductSerializer
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.SerializerMethodField()
     product_mrp  = serializers.SerializerMethodField()
+    product_gst  = serializers.SerializerMethodField()
 
     def get_product_name(self, obj):
         if obj.variant:
@@ -16,9 +17,12 @@ class OrderItemSerializer(serializers.ModelSerializer):
             return str(obj.variant.mrp)
         return str(obj.product.mrp) if obj.product.mrp else None
 
+    def get_product_gst(self, obj):
+        return str(obj.product.gst_percentage) if obj.product.gst_percentage else '0'
+
     class Meta:
         model = OrderItem
-        fields = ['id', 'product', 'product_name', 'product_mrp', 'quantity', 'price']
+        fields = ['id', 'product', 'product_name', 'product_mrp', 'product_gst', 'quantity', 'price']
 
 class PlaceOrderSerializer(serializers.Serializer):
     vendor_id = serializers.UUIDField()
