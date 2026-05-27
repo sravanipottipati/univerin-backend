@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import fix_vendor_gps_view, (VendorRegisterView, NearbyShopsView, PopularProductsView,
+from .views import (fix_vendor_gps_view, VendorRegisterView, NearbyShopsView, PopularProductsView,
                     ShopDetailView, AddProductView,
                     ShopProductsView, MyShopView, ToggleShopView,
                     EditProductView, SearchView, WishlistView,
