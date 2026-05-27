@@ -88,8 +88,7 @@ class PlaceOrderView(APIView):
         tcs_amount       = round(subtotal * 1 / 100, 2)
         platform_fee_gst = round(platform_fee * 1.18)
         frontend_total   = float(data.get('total', 0))
-        print(f'DEBUG ORDER: frontend_total={frontend_total}, subtotal={subtotal}, platform={platform_fee_gst}, delivery={delivery_fee}')
-        grand_total      = frontend_total if frontend_total > 0 else round(subtotal + platform_fee_gst + delivery_fee, 2)
+        grand_total      = round(frontend_total, 2) if frontend_total > 0 else round(subtotal + platform_fee_gst + delivery_fee, 2)
 
         order = Order.objects.create(
             buyer=request.user,
