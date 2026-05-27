@@ -225,23 +225,18 @@ class MyShopView(APIView):
         except Exception:
             return Response({'error': 'You do not have a shop yet'}, status=404)
         allowed_fields = ['shop_name', 'address', 'town', 'phone_number', 'description', 'delivery_radius', 'latitude', 'longitude', 'category', 'min_order']
-        # Auto-geocode if no GPS provided
-        if not data.get('latitude') and not data.get('longitude'):
-            addr = data.get('address', vendor.address or '')
-            town = data.get('town', vendor.town or '')
-            if addr or town:
-                lat, lng = auto_geocode(addr, town)
-                if lat and lng:
-                    data._mutable = True if hasattr(data, '_mutable') else None
-                    try:
-                        data = data.copy()
-                        data['latitude'] = lat
-                        data['longitude'] = lng
-                    except:
-                        pass
         for field in allowed_fields:
             if field in request.data:
                 setattr(vendor, field, request.data[field])
+        # Auto-geocode if no GPS provided
+        if not vendor.latitude or not vendor.longitude:
+            addr = vendor.address or ''
+            town = vendor.town or ''
+            if addr or town:
+                lat, lng = auto_geocode(addr, town)
+                if lat and lng:
+                    vendor.latitude = lat
+                    vendor.longitude = lng
         vendor.save()
         return Response({
             'message': 'Shop updated successfully',
