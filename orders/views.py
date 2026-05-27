@@ -72,7 +72,6 @@ class PlaceOrderView(APIView):
 
         # Use delivery fee from frontend (slab-based)
         delivery_fee = float(data.get('delivery_fee', 10))
-        print(f'DEBUG: delivery_fee={delivery_fee}, items={data.get("items")}')
 
         # Commission rate based on vendor category
         category = vendor.category.lower() if vendor.category else ''
