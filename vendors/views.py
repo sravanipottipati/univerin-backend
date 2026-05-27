@@ -126,8 +126,8 @@ class NearbyShopsView(APIView):
                     vendor_delivery_radius = s.delivery_radius if s.delivery_radius is not None else 5.0
                     within_vendor_radius   = dist <= vendor_delivery_radius
 
-                    # Show shop if within buyer radius (ignore vendor delivery radius for now)
-                    if within_buyer_radius:
+                    # Show shop if within BOTH buyer radius AND vendor delivery radius
+                    if within_buyer_radius and within_vendor_radius:
                         s._distance = dist
                         filtered.append(s)
 
