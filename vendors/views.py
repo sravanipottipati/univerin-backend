@@ -548,8 +548,11 @@ class PopularProductsView(APIView):
         return Response(data)
 
 
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+
 @api_view(['GET'])
-@permission_classes([])
+@permission_classes([AllowAny])
 def fix_vendor_gps_view(request):
     import requests as req
     vendors = Vendor.objects.filter(status='approved', latitude__isnull=True)
