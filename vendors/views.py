@@ -85,15 +85,33 @@ class NearbyShopsView(APIView):
                 blat = float(buyer_lat)
                 blng = float(buyer_lng)
 
+                TOWN_COORDS = {
+                    'nellore': (14.4426, 79.9865),
+                    'tirupati': (13.6288, 79.4192),
+                    'hyderabad': (17.3850, 78.4867),
+                    'warangal': (17.9784, 79.5941),
+                    'vizag': (17.6868, 83.2185),
+                    'guntur': (16.3067, 80.4365),
+                    'kadapa': (14.4674, 78.8241),
+                }
                 def get_distance(v):
-                    if not v.latitude or not v.longitude:
-                        return 0.0
+                    vlat = v.latitude
+                    vlng = v.longitude
+                    if not vlat or not vlng:
+                        # Use town coordinates as fallback
+                        town_key = (v.town or '').lower().strip()
+                        if town_key in TOWN_COORDS:
+                            vlat, vlng = TOWN_COORDS[town_key]
+                        else:
+                            return 999.0  # far away
+                    if not vlat or not vlng:
+                        return 999.0
                     R    = 6371
-                    dlat = math.radians(v.latitude - blat)
-                    dlon = math.radians(v.longitude - blng)
+                    dlat = math.radians(vlat - blat)
+                    dlon = math.radians(vlng - blng)
                     a    = (math.sin(dlat/2)**2 +
                             math.cos(math.radians(blat)) *
-                            math.cos(math.radians(v.latitude)) *
+                            math.cos(math.radians(vlat)) *
                             math.sin(dlon/2)**2)
                     return round(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)), 1)
 
