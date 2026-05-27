@@ -4,7 +4,8 @@ def auto_geocode(address, town):
     import requests
     try:
         query = f"{address}, {town}, India"
-        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={requests.utils.quote(query)}&key=AIzaSyCS_YRu6O61LCZn_QlypzjcjSdeRqbQaDI"
+        from urllib.parse import quote
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={quote(query)}&key=AIzaSyCS_YRu6O61LCZn_QlypzjcjSdeRqbQaDI"
         res = requests.get(url, timeout=5)
         data = res.json()
         if data['status'] == 'OK':
@@ -555,12 +556,13 @@ from rest_framework.permissions import AllowAny
 @permission_classes([AllowAny])
 def fix_vendor_gps_view(request):
     import requests as req
+    from urllib.parse import quote
     vendors = Vendor.objects.filter(status='approved', latitude__isnull=True)
     results = []
     for v in vendors:
         try:
             query = f"{v.address or ''}, {v.town or ''}, India"
-            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={req.utils.quote(query)}&key=AIzaSyCS_YRu6O61LCZn_QlypzjcjSdeRqbQaDI"
+            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={quote(query)}&key=AIzaSyCS_YRu6O61LCZn_QlypzjcjSdeRqbQaDI"
             res = req.get(url, timeout=5)
             data = res.json()
             if data['status'] == 'OK':
