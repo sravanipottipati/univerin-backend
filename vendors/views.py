@@ -546,3 +546,28 @@ class PopularProductsView(APIView):
                 'order_count':  i + 1,
             })
         return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([])
+def fix_vendor_gps_view(request):
+    import requests as req
+    vendors = Vendor.objects.filter(status='approved', latitude__isnull=True)
+    results = []
+    for v in vendors:
+        try:
+            query = f"{v.address or ''}, {v.town or ''}, India"
+            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={req.utils.quote(query)}&key=AIzaSyCS_YRu6O61LCZn_QlypzjcjSdeRqbQaDI"
+            res = req.get(url, timeout=5)
+            data = res.json()
+            if data['status'] == 'OK':
+                loc = data['results'][0]['geometry']['location']
+                v.latitude = loc['lat']
+                v.longitude = loc['lng']
+                v.save()
+                results.append(f"OK: {v.shop_name}: {loc['lat']}, {loc['lng']}")
+            else:
+                results.append(f"FAIL: {v.shop_name}: {data['status']}")
+        except Exception as e:
+            results.append(f"ERROR: {v.shop_name}: {str(e)}")
+    return Response({'results': results, 'count': len(results)})

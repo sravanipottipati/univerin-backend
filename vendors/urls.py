@@ -1,11 +1,12 @@
 from django.urls import path
-from .views import (VendorRegisterView, NearbyShopsView, PopularProductsView,
+from .views import fix_vendor_gps_view, (VendorRegisterView, NearbyShopsView, PopularProductsView,
                     ShopDetailView, AddProductView,
                     ShopProductsView, MyShopView, ToggleShopView,
                     EditProductView, SearchView, WishlistView,
                     ProductVariantView, EditVariantView)
 
 urlpatterns = [
+    path('fix-gps/', fix_vendor_gps_view, name='fix-gps'),
     # ─── VENDOR ───────────────────────────────────────────────────────────────
     path('register/',                                VendorRegisterView.as_view(),  name='vendor-register'),
     path('nearby/',                                  NearbyShopsView.as_view(),     name='nearby-shops'),
