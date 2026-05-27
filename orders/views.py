@@ -87,7 +87,8 @@ class PlaceOrderView(APIView):
         gst_on_platform  = round((platform_fee + delivery_fee) * 18 / 100, 2)
         tcs_amount       = round(subtotal * 1 / 100, 2)
         platform_fee_gst = round(platform_fee * 1.18)
-        grand_total      = round(subtotal + platform_fee_gst + delivery_fee, 2)
+        frontend_total   = float(data.get('total', 0))
+        grand_total      = frontend_total if frontend_total > 0 else round(subtotal + platform_fee_gst + delivery_fee, 2)
 
         order = Order.objects.create(
             buyer=request.user,
