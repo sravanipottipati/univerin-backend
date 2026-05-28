@@ -29,6 +29,8 @@ class PlaceOrderSerializer(serializers.Serializer):
     delivery_address = serializers.CharField()
     instructions = serializers.CharField(required=False, allow_blank=True)
     payment_mode = serializers.ChoiceField(choices=['cod', 'online'], default='cod')
+    delivery_fee = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, default=0)
+    total        = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, default=0)
     items = serializers.ListField(
         child=serializers.DictField()
     )
