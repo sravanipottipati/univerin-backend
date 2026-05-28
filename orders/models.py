@@ -5,13 +5,29 @@ import uuid
 
 
 # ── Readable order number like UNI-250401-7823 ────────────────────────────────
-def generate_order_number():
+def generate_order_number(vendor=None):
     from datetime import datetime
     import random, string
-    date    = datetime.now().strftime("%y%m%d")
-    letters = "".join(random.choices(string.ascii_uppercase, k=3))
-    num     = random.randint(100, 999)
-    return f"UNI-{date}-{letters}{num}"
+    date = datetime.now().strftime("%y%m%d")
+    # Get shop initials from vendor
+    if vendor and hasattr(vendor, 'shop_name') and vendor.shop_name:
+        words = vendor.shop_name.strip().split()
+        initials = ''.join(w[0].upper() for w in words if w)[:3]
+    else:
+        initials = 'UNI'
+    # Get today's order count for this vendor
+    try:
+        from django.utils import timezone
+        today = timezone.now().date()
+        # Count orders for this vendor today
+        today_count = Order.objects.filter(
+            vendor=vendor,
+            created_at__date=today
+        ).count() + 1
+        seq = str(today_count).zfill(3)
+    except Exception:
+        seq = ''.join(random.choices(string.digits, k=3))
+    return f"UNI-{date}-{initials}{seq}"
 
 
 class Order(models.Model):

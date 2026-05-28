@@ -90,7 +90,12 @@ class PlaceOrderView(APIView):
         frontend_total   = float(data.get('total', 0))
         grand_total      = round(frontend_total, 2) if frontend_total > 0 else round(subtotal + platform_fee_gst + delivery_fee, 2)
 
+        # Generate order number with shop initials
+        from .models import generate_order_number
+        order_num = generate_order_number(vendor=vendor)
+
         order = Order.objects.create(
+            order_number=order_num,
             buyer=request.user,
             vendor=vendor,
             subtotal=subtotal,
