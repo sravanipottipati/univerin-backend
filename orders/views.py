@@ -43,6 +43,12 @@ class PlaceOrderView(APIView):
                 {'error': 'Shop not found or not approved'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        # Block order if vendor has no bank details
+        if not vendor.bank_account_number or not vendor.bank_ifsc_code:
+            return Response(
+                {'error': 'This shop is currently not accepting orders. Please try another shop.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         total_amount = 0
         order_items  = []
         for item in data['items']:
