@@ -26,6 +26,11 @@ class Vendor(models.Model):
         ('rejected', 'Rejected'),
     )
     id                      = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # ── Bank Details ──────────────────────────────────────────
+    bank_account_name   = models.CharField(max_length=200, blank=True, null=True)
+    bank_account_number = models.CharField(max_length=20,  blank=True, null=True)
+    bank_ifsc_code      = models.CharField(max_length=11,  blank=True, null=True)
+    bank_name           = models.CharField(max_length=100, blank=True, null=True)
     user                    = models.OneToOneField(User, on_delete=models.CASCADE, related_name='vendor')
     shop_name               = models.CharField(max_length=200)
     category                = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
