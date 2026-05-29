@@ -46,7 +46,8 @@ class PlaceOrderSerializer(serializers.Serializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
-    buyer_name = serializers.CharField(source='buyer.full_name', read_only=True)
+    buyer_name  = serializers.CharField(source='buyer.full_name', read_only=True)
+    buyer_phone = serializers.CharField(source='buyer.phone_number', read_only=True)
     shop_name = serializers.CharField(source='vendor.shop_name', read_only=True)
     has_review = serializers.SerializerMethodField()
     has_return = serializers.SerializerMethodField()
@@ -59,6 +60,6 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ['id', 'order_number', 'buyer_name', 'shop_name', 'vendor_id', 'status', 'total_amount',
+        fields = ['id', 'order_number', 'buyer_name', 'buyer_phone', 'shop_name', 'vendor_id', 'status', 'total_amount',
                   'platform_fee', 'delivery_fee', 'delivery_address', 'instructions',
                   'payment_mode', 'gst_on_platform', 'subtotal', 'items', 'created_at', 'updated_at', 'has_review', 'has_return']
