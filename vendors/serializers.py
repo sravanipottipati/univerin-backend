@@ -51,7 +51,19 @@ class VendorSerializer(serializers.ModelSerializer):
                   'rating', 'total_reviews', 'platform_fee',
                   'is_open', 'status', 'products',
                   'distance', 'created_at',
-                  'bank_account_name', 'bank_account_number', 'bank_ifsc_code', 'bank_name']
+                  'bank_account_name', 'bank_account_number', 'bank_ifsc_code', 'bank_name',
+                  'min_order_value']
+
+    min_order_value = serializers.SerializerMethodField()
+
+    def get_min_order_value(self, obj):
+        mov_map = {
+            'restaurant':  499,
+            'supermarket': 699,
+            'bakery':      399,
+            'veg_fruits':  199,
+        }
+        return mov_map.get(obj.category, 199)
 
     def get_distance(self, obj):
         request = self.context.get('request')
