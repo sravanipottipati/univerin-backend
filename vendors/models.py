@@ -6,14 +6,10 @@ import uuid
 
 class Vendor(models.Model):
     CATEGORY_CHOICES = (
-        ('vegetables',  'Vegetables'),
-        ('fruits',      'Fruits'),
-        ('dairy',       'Dairy'),
-        ('bakery',      'Bakery'),
-        ('grocery',     'Grocery'),
         ('restaurant',  'Restaurant'),
         ('supermarket', 'Supermarket'),
-        ('other',       'Other'),
+        ('bakery',      'Bakery'),
+        ('veg_fruits',  'Veg & Fruits'),
     )
     DELIVERY_CHOICES = (
         ('delivery', 'Delivery'),
