@@ -53,6 +53,7 @@ class Order(models.Model):
     total_amount     = models.DecimalField(max_digits=10, decimal_places=2)
     platform_fee     = models.DecimalField(max_digits=6, decimal_places=2, default=10)
     delivery_fee     = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    gst_on_delivery  = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     commission_rate  = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     commission_amount= models.DecimalField(max_digits=8, decimal_places=2, default=0)
     gst_on_platform  = models.DecimalField(max_digits=6, decimal_places=2, default=0)

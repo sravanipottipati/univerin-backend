@@ -76,8 +76,11 @@ class PlaceOrderView(APIView):
         # Platform fee
         platform_fee = 10  # flat ₹10
 
-        # Use delivery fee from frontend (slab-based)
-        delivery_fee = float(data.get('delivery_fee') or 0)
+        # Use delivery fee from frontend (slab-based, incl. GST)
+        delivery_fee_incl_gst = float(data.get('delivery_fee') or 0)
+        # Split delivery fee into base + GST (18%)
+        delivery_fee = round(delivery_fee_incl_gst / 1.18, 2)
+        gst_on_delivery = round(delivery_fee_incl_gst - delivery_fee, 2)
 
         # Commission rate based on vendor category
         category = vendor.category.lower() if vendor.category else ''
@@ -107,6 +110,7 @@ class PlaceOrderView(APIView):
             subtotal=subtotal,
             platform_fee=platform_fee,
             delivery_fee=delivery_fee,
+            gst_on_delivery=gst_on_delivery,
             commission_rate=commission_rate,
             commission_amount=commission_amount,
             gst_on_platform=gst_on_platform,
