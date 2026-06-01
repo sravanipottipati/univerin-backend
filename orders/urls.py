@@ -1,6 +1,6 @@
 from django.urls import path
 from .payment_views import create_payment_order, verify_payment, payment_failed
-from .views import (submit_return, PlaceOrderView, BuyerOrdersView,
+from .views import (ClearNotificationsView,submit_return, PlaceOrderView, BuyerOrdersView,
                     VendorOrdersView, UpdateOrderStatusView,
                     OrderDetailView, NotificationListView,
                     MarkNotificationReadView, SubmitReviewView,
@@ -22,6 +22,7 @@ urlpatterns = [
     path('notifications/',                       NotificationListView.as_view(),     name='notifications'),
     path('notifications/read/',                  MarkNotificationReadView.as_view(), name='mark-all-read'),
     path('notifications/<uuid:notif_id>/read/',  MarkNotificationReadView.as_view(), name='mark-read'),
+    path('notifications/clear/',                 ClearNotificationsView.as_view(),   name='clear-notifications'),
 
     # ─── CART ─────────────────────────────────────────────────────────────────
     path('cart/',                                get_cart,                           name='get-cart'),

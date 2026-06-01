@@ -302,6 +302,12 @@ class MarkNotificationReadView(APIView):
         return Response({'message': 'Marked as read'})
 
 
+class ClearNotificationsView(APIView):
+    permission_classes = [IsAuthenticated]
+    def delete(self, request):
+        Notification.objects.filter(user=request.user).delete()
+        return Response({'message': 'Notifications cleared'})
+
 class SubmitReviewView(APIView):
     permission_classes = [IsAuthenticated]
 
