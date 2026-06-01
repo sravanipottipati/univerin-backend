@@ -12,6 +12,9 @@ from django.utils import timezone
 
 def create_notification(user, notif_type, title, message, order=None):
     try:
+        # Don't create duplicate notifications for same order + type
+        if order and Notification.objects.filter(user=user, type=notif_type, order=order).exists():
+            return
         Notification.objects.create(
             user=user,
             type=notif_type,
