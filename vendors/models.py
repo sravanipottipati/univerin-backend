@@ -56,6 +56,10 @@ class Vendor(models.Model):
 
 class Product(models.Model):
     CATEGORY_CHOICES = (
+        ('food_meals',      'Food & Meals'),
+        ('grocery_staples', 'Grocery & Staples'),
+        ('bakery_sweets',   'Bakery & Sweets'),
+        ('fresh_produce',   'Fresh Produce'),
         ('vegetables',    'Vegetables'),
         ('fruits',        'Fruits'),
         ('dairy',         'Dairy'),
