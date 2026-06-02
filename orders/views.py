@@ -373,6 +373,7 @@ def get_cart(request):
             'product_gst':   str(item.product.gst_percentage),
             'vendor_id':     str(item.vendor.id),
             'vendor_name':   item.vendor.shop_name,
+            'vendor_mov':    {'restaurant':499,'supermarket':699,'bakery':399,'veg_fruits':199}.get(item.vendor.category, 199),
             'quantity':      item.quantity,
             'subtotal':      str(item.subtotal),
         })
