@@ -99,14 +99,8 @@ def generate_buyer_invoice(order):
     pd = [
         [_p('<b>Buyer details</b>', bold=True, size=8, color=GRAY),
          _p('<b>Seller (supplier of goods)</b>', bold=True, size=8, color=GRAY)],
-        [_p(f'{bn}
-Ph: {buyer.phone_number}
-{order.delivery_address or "N/A"}'),
-         _p(f'{vendor.shop_name}
-{vendor.address or vendor.town or "N/A"}
-GSTIN: {sg}
-
-Goods listed below are supplied by the respective seller.', color=GRAY)]
+        [_p(f'{bn}<br/>Ph: {buyer.phone_number}<br/>{order.delivery_address or "N/A"}'),
+         _p(f'{vendor.shop_name}<br/>{vendor.address or vendor.town or "N/A"}<br/>GSTIN: {sg}<br/><br/>Goods listed below are supplied by the respective seller.', color=GRAY)]
     ]
     pt = Table(pd, colWidths=[90*mm, 90*mm])
     pt.setStyle(TableStyle([
@@ -123,11 +117,8 @@ Goods listed below are supplied by the respective seller.', color=GRAY)]
     s.append(_p('<b>Billed / facilitated by</b>', bold=True, size=8, color=GRAY))
     s.append(Spacer(1,2*mm))
     bd = [[
-        _p(f'<b>{UNIVERIN["name"]}</b>
-{UNIVERIN["address"]}
-GSTIN: {UNIVERIN["gstin"]}'),
-        _p(f'{UNIVERIN["email"]}
-Ph: {UNIVERIN["phone"]}', align='RIGHT')
+        _p(f'<b>{UNIVERIN["name"]}</b><br/>{UNIVERIN["address"]}<br/>GSTIN: {UNIVERIN["gstin"]}'),
+        _p(f'{UNIVERIN["email"]}<br/>Ph: {UNIVERIN["phone"]}', align='RIGHT')
     ]]
     bt = Table(bd, colWidths=[120*mm, 60*mm])
     bt.setStyle(TableStyle([('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e5e7eb')),('PADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
@@ -177,10 +168,8 @@ Ph: {UNIVERIN["phone"]}', align='RIGHT')
     pfg = round(float(pf) * 1.18)
     univerin_total = df + pfg
     ch = Table([
-        [_p('Delivery fee (incl. GST 18%)
-Logistics service by Univerin'), _p(f'Rs.{df:.2f}', align='RIGHT')],
-        [_p(f'Platform fee (incl. GST 18%)
-Marketplace facilitation by Univerin'), _p(f'Rs.{pfg}', align='RIGHT')],
+        [_p('Delivery fee (incl. GST 18%)<br/>Logistics service by Univerin'), _p(f'Rs.{df:.2f}', align='RIGHT')],
+        [_p(f'Platform fee (incl. GST 18%)<br/>Marketplace facilitation by Univerin'), _p(f'Rs.{pfg}', align='RIGHT')],
     ], colWidths=[140*mm, 30*mm])
     ch.setStyle(TableStyle([
         ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e5e7eb')),
