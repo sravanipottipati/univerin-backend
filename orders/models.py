@@ -27,7 +27,7 @@ def generate_order_number(vendor=None):
         seq = str(today_count).zfill(3)
     except Exception:
         seq = ''.join(random.choices(string.digits, k=3))
-    return f"UNI-{date}-{initials}{seq}"
+    return f"UNI-{date}-{initials}{seq}" if not Order.objects.filter(order_number=f"UNI-{date}-{initials}{seq}").exists() else f"UNI-{date}-{initials}{seq}{random.randint(1,9)}"
 
 
 class Order(models.Model):
