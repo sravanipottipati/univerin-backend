@@ -41,7 +41,12 @@ def seller_dashboard_invoice(request, order_id):
         order = Order.objects.get(id=order_id, vendor=vendor)
     except Exception:
         return Response({'error': 'Order not found'}, status=404)
-    buffer = generate_seller_dashboard_invoice(order)
+    try:
+        buffer = generate_seller_dashboard_invoice(order)
+    except Exception as e:
+        import traceback
+        print("PDF ERROR:", traceback.format_exc())
+        return Response({'error': str(e)}, status=500)
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="seller_invoice_{str(order.id)[:8].upper()}.pdf"'
     return response
