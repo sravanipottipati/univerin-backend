@@ -61,5 +61,5 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = ['id', 'order_number', 'buyer_name', 'buyer_phone', 'shop_name', 'vendor_id', 'status', 'total_amount', 'commission_rate', 'commission_amount', 'tcs_amount',
-                  'platform_fee', 'delivery_fee', 'delivery_address', 'instructions',
+                  'platform_fee', 'delivery_fee', 'gst_on_delivery', 'delivery_address', 'instructions',
                   'payment_mode', 'gst_on_platform', 'subtotal', 'items', 'created_at', 'updated_at', 'has_review', 'has_return']
