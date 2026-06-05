@@ -86,8 +86,8 @@ def seller_monthly_excel(request):
     month_name = datetime(year, month, 1).strftime("%B %Y")
     start_row = add_univerin_header(ws1, f"Monthly Earnings Statement — {month_name}", f"Seller: {vendor.shop_name}")
 
-    headers = ["Order ID", "Date", "Order Value", "Commission", "TCS (1%)", "Total Deductions", "Net Earnings", "Status"]
-    col_widths = [20, 15, 15, 15, 12, 18, 15, 12]
+    headers = ["Order ID", "Date", "Item Total (excl. GST)", "GST on Items", "Item Total (incl. GST)", "Commission", "TCS (1%)", "Total Deductions", "Net Earnings", "Status"]
+    col_widths = [20, 15, 20, 15, 22, 15, 12, 18, 15, 12]
 
     for col, (h, w) in enumerate(zip(headers, col_widths), 1):
         cell = ws1.cell(row=start_row, column=col, value=h)
@@ -102,6 +102,11 @@ def seller_monthly_excel(request):
     for i, order in enumerate(orders):
         row = start_row + 1 + i
         ov   = Decimal(str(order.subtotal or 0))
+        gst_amt = Decimal("0")
+        for item in order.items.all():
+            gst_pct = Decimal(str(item.product.gst_percentage or 0))
+            gst_amt += Decimal(str(item.price)) * item.quantity * gst_pct / 100
+        ov_gst = ov + gst_amt
         comm = Decimal(str(order.commission_amount or 0))
         tcs  = Decimal(str(order.tcs_amount or 0))
         ded  = comm + tcs
@@ -114,13 +119,15 @@ def seller_monthly_excel(request):
             str(order.id)[:12].upper(),
             order.created_at.strftime("%d %b %Y"),
             f"Rs.{ov:.2f}",
+            f"Rs.{gst_amt:.2f}",
+            f"Rs.{ov_gst:.2f}",
             f"Rs.{comm:.2f}",
             f"Rs.{tcs:.2f}",
             f"Rs.{ded:.2f}",
             f"Rs.{net:.2f}",
             order.status.title()
         ]
-        aligns = ["left","center","right","right","right","right","right","center"]
+        aligns = ["left","center","right","right","right","right","right","right","right","center"]
         for col, (val, align) in enumerate(zip(row_data, aligns), 1):
             cell = ws1.cell(row=row, column=col, value=val)
             style_cell(cell, align=align)
