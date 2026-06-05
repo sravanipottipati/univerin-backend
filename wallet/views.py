@@ -45,22 +45,28 @@ class WalletSummaryView(APIView):
 
         # Total earnings = all delivered orders subtotal
         from django.db.models import Sum as DSum
-        total_earnings = Order.objects.filter(
-            vendor=vendor,
-            status='delivered'
-        ).aggregate(total=DSum('subtotal'))['total'] or 0
+        from orders.models import OrderItem
+        from decimal import Decimal
 
-        pending_settlement = Order.objects.filter(
-            vendor=vendor,
-            status='delivered',
-            payment_status='pending'
-        ).aggregate(total=DSum('subtotal'))['total'] or 0
+        delivered_orders = Order.objects.filter(
+            vendor=vendor, status='delivered'
+        ).prefetch_related('items__product')
 
-        settled_amount = Order.objects.filter(
-            vendor=vendor,
-            status='delivered',
-            payment_status='paid'
-        ).aggregate(total=DSum('subtotal'))['total'] or 0
+        def calc_items_with_gst(orders):
+            total = Decimal('0')
+            for o in orders:
+                for i in o.items.all():
+                    gst = Decimal(str(i.product.gst_percentage or 0))
+                    total += Decimal(str(i.price)) * i.quantity * (1 + gst / 100)
+            return float(round(total, 2))
+
+        total_earnings = calc_items_with_gst(delivered_orders)
+
+        pending_orders = delivered_orders.filter(payment_status='pending')
+        pending_settlement = calc_items_with_gst(pending_orders)
+
+        settled_orders = delivered_orders.filter(payment_status='paid')
+        settled_amount = calc_items_with_gst(settled_orders)
 
         return Response({
             'shop_name':          vendor.shop_name,
