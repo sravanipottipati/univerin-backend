@@ -164,11 +164,14 @@ def generate_buyer_invoice(order):
     s.append(_p('<b>Charges by Univerin</b>', bold=True, size=8, color=GRAY))
     s.append(Spacer(1,2*mm))
     df  = Decimal(str(order.delivery_fee or 0))
+    gst_on_del = Decimal(str(order.gst_on_delivery or 0))
+    df_total = df + gst_on_del
     pf  = Decimal(str(order.platform_fee or 10))
-    pfg = round(float(pf) * 1.18)
-    univerin_total = df + pfg
+    gst_on_pf = Decimal(str(order.gst_on_platform or 0))
+    pfg = pf + gst_on_pf
+    univerin_total = df_total + pfg
     ch = Table([
-        [_p('Delivery fee (incl. GST 18%)<br/>Logistics service by Univerin'), _p(f'Rs.{df:.2f}', align='RIGHT')],
+        [_p('Delivery fee (incl. GST 18%)<br/>Logistics service by Univerin'), _p(f'Rs.{df_total:.2f}', align='RIGHT')],
         [_p(f'Platform fee (incl. GST 18%)<br/>Marketplace facilitation by Univerin'), _p(f'Rs.{pfg}', align='RIGHT')],
     ], colWidths=[140*mm, 30*mm])
     ch.setStyle(TableStyle([
@@ -627,14 +630,18 @@ def generate_seller_dashboard_invoice(order):
     s.append(Spacer(1,4*mm))
 
     # Earnings breakdown
-    comm  = Decimal(str(order.commission_amount or 0))
-    tcs   = Decimal(str(order.tcs_amount or 0))
-    ded   = comm + tcs
-    net   = subtotal - ded
+    comm_base = Decimal(str(order.commission_amount or 0))
+    comm_gst  = round(comm_base * Decimal("0.18"), 2)
+    comm      = comm_base + comm_gst
+    tcs       = Decimal(str(order.tcs_amount or 0))
+    ded       = comm + tcs
+    net       = subtotal - ded
 
     td = [
         [p("Order value (excl. GST)"), p(f"Rs.{subtotal:.2f}",align="RIGHT")],
-        [p(f"Commission ({order.commission_rate or 0}%)"), p(f"- Rs.{comm:.2f}",color=RED,align="RIGHT")],
+        [p(f"Commission ({order.commission_rate or 0}%) excl. GST"), p(f"Rs.{comm_base:.2f}",align="RIGHT")],
+        [p("GST on commission (18%)"), p(f"Rs.{comm_gst:.2f}",align="RIGHT")],
+        [p("Commission (incl. GST)"), p(f"- Rs.{comm:.2f}",color=RED,align="RIGHT")],
         [p("TCS deducted (1%)"), p(f"- Rs.{tcs:.2f}",color=RED,align="RIGHT")],
         [p("Total deductions"), p(f"- Rs.{ded:.2f}",color=RED,align="RIGHT")],
         [p("<b>Net earnings</b>",bold=True,size=10,color=GREEN), p(f"<b>Rs.{net:.2f}</b>",bold=True,size=10,color=GREEN,align="RIGHT")],
