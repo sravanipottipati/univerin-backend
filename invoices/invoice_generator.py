@@ -167,7 +167,7 @@ def generate_buyer_invoice(order):
     gst_on_del = Decimal(str(order.gst_on_delivery or 0))
     df_total = df + gst_on_del
     pf  = Decimal(str(order.platform_fee or 10))
-    gst_on_pf = Decimal(str(order.gst_on_platform or 0))
+    gst_on_pf = round(pf * Decimal("0.18"), 2)
     pfg = pf + gst_on_pf
     univerin_total = df_total + pfg
     ch = Table([
