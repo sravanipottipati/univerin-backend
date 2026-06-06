@@ -658,3 +658,89 @@ def generate_seller_dashboard_invoice(order):
     doc.build(s)
     buf.seek(0)
     return buf
+
+
+def generate_platform_invoice(order):
+    """Platform Invoice — Univerin charges to buyer"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.styles import ParagraphStyle
+    from io import BytesIO
+    from datetime import datetime
+    from decimal import Decimal
+
+    BLUE  = colors.HexColor("#2563eb")
+    DARK  = colors.HexColor("#111827")
+    GRAY  = colors.HexColor("#6b7280")
+    LIGHT = colors.HexColor("#f3f4f6")
+
+    def p(text, font="Helvetica", size=8, color=None, align="LEFT", bold=False):
+        fn = "Helvetica-Bold" if bold else font
+        al = {"LEFT":0,"CENTER":1,"RIGHT":2}.get(align,0)
+        return Paragraph(text, ParagraphStyle("s", fontName=fn, fontSize=size, textColor=color or DARK, alignment=al, leading=size+3))
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=12*mm, bottomMargin=12*mm)
+    s = []
+    today = datetime.now()
+    inv_no = f"PINV/{today.year}-{str(today.year+1)[-2:]}/{str(order.id)[:6].upper()}"
+    order_date = order.created_at.strftime("%d %b %Y")
+    buyer = order.buyer
+
+    left  = p('<b><font color="#2563eb" size="22">Univerin</font></b>', size=22)
+    right = p(f'<b>PLATFORM INVOICE</b><br/><font size="8" color="#6b7280">Invoice No: {inv_no}</font><br/><font size="8" color="#6b7280">Date: {order_date}</font><br/><font size="8" color="#6b7280">Order ID: {str(order.id)[:12].upper()}</font>', size=10, align='RIGHT')
+    ht = Table([[left, right]], colWidths=[90*mm, 90*mm])
+    ht.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP"),("LINEBELOW",(0,0),(-1,0),0.5,colors.HexColor("#e5e7eb"))]))
+    s.append(ht)
+    s.append(Spacer(1,3*mm))
+    s.append(p("Hyperlocal Marketplace — Platform Service Charges", color=GRAY, align="CENTER"))
+    s.append(Spacer(1,4*mm))
+
+    bn = buyer.full_name or buyer.phone_number
+    pd = [
+        [p("<b>Billed by (Platform)</b>", bold=True), p("<b>Billed to (Buyer)</b>", bold=True)],
+        [p(f"Univerin Private Limited<br/>GSTIN: 37AADCU8846J1ZP<br/>contact@univerin.in | Ph: 9000869619"),
+         p(f"{bn}<br/>Ph: {buyer.phone_number}")]
+    ]
+    pt = Table(pd, colWidths=[90*mm, 90*mm])
+    pt.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("VALIGN",(0,0),(-1,-1),"TOP"),("PADDING",(0,0),(-1,-1),5)]))
+    s.append(pt)
+    s.append(Spacer(1,4*mm))
+
+    pf  = Decimal(str(order.platform_fee or 10))
+    df  = Decimal(str(order.delivery_fee or 0))
+    gst_on_delivery = Decimal(str(order.gst_on_delivery or 0))
+    gst_on_platform = Decimal(str(order.gst_on_platform or 0))
+    pf_total = pf + gst_on_platform
+    df_total = df + gst_on_delivery
+    total_platform = pf_total + df_total
+
+    rows = [[p("<b>Description</b>",bold=True), p("<b>Base</b>",bold=True,align="RIGHT"), p("<b>GST 18%</b>",bold=True,align="RIGHT"), p("<b>Total</b>",bold=True,align="RIGHT")]]
+    rows.append([p("Platform fee — Marketplace facilitation"), p(f"Rs.{pf:.2f}",align="RIGHT"), p(f"Rs.{gst_on_platform:.2f}",align="RIGHT"), p(f"Rs.{pf_total:.2f}",align="RIGHT")])
+    rows.append([p("Delivery fee — Logistics service"), p(f"Rs.{df:.2f}",align="RIGHT"), p(f"Rs.{gst_on_delivery:.2f}",align="RIGHT"), p(f"Rs.{df_total:.2f}",align="RIGHT")])
+    ct = Table(rows, colWidths=[80*mm, 30*mm, 30*mm, 30*mm])
+    ct.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),5)]))
+    s.append(ct)
+    s.append(Spacer(1,3*mm))
+
+    td = [
+        [p("Platform fee (incl. GST)"), p(f"Rs.{pf_total:.2f}",align="RIGHT")],
+        [p("Delivery fee (incl. GST)"), p(f"Rs.{df_total:.2f}",align="RIGHT")],
+        [p("<b>Total platform charges</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{total_platform:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")],
+    ]
+    tt = Table(td, colWidths=[130*mm, 40*mm], hAlign="RIGHT")
+    tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),5)]))
+    s.append(tt)
+    s.append(Spacer(1,4*mm))
+    s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
+    for n in ["Platform fee and delivery fee are charged by Univerin Private Limited.", "GST @ 18% (CGST 9% + SGST 9%) on platform and delivery fees as per SAC 998599.", "For queries: contact@univerin.in | Ph: 9000869619"]:
+        s.append(p("• "+n, color=GRAY, size=7))
+    s.append(Spacer(1,3*mm))
+    s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
+    s.append(p("Univerin Private Limited | GSTIN: 37AADCU8846J1ZP | contact@univerin.in | 9000869619", color=GRAY, align="CENTER", size=7))
+    s.append(p("Powering your local business.", bold=True, color=BLUE, align="CENTER"))
+    doc.build(s)
+    buf.seek(0)
+    return buf

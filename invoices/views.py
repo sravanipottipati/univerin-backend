@@ -84,3 +84,21 @@ def tcs_certificate(request):
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="tcs_{vendor.shop_name}.pdf"'
     return response
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def platform_invoice(request, order_id):
+    from .invoice_generator import generate_platform_invoice
+    try:
+        order = Order.objects.get(id=order_id, buyer=request.user)
+    except Order.DoesNotExist:
+        return Response({'error': 'Order not found'}, status=404)
+    try:
+        buffer = generate_platform_invoice(order)
+    except Exception as e:
+        import traceback
+        print("Platform invoice ERROR:", traceback.format_exc())
+        return Response({'error': str(e)}, status=500)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="platform_{str(order.id)[:8].upper()}.pdf"'
+    return response
