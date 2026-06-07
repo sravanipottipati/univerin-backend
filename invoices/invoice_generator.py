@@ -69,157 +69,219 @@ def header_table(order, title, extra=''):
     return t
 
 def generate_buyer_invoice(order):
+    """Doc 1 — Combined Buyer Invoice (Wrapper with Section A + Section B)"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.styles import ParagraphStyle
+    from io import BytesIO
+    from decimal import Decimal
+    from .tax_utils import calc_gst, is_interstate, get_state_code, PLATFORM_STATE, PLATFORM_GSTIN, amount_in_words
+    from .models import InvoiceSequence
+
+    BLUE  = colors.HexColor("#2563eb")
+    DARK  = colors.HexColor("#111827")
+    GRAY  = colors.HexColor("#6b7280")
+    LIGHT = colors.HexColor("#f3f4f6")
+    GREEN = colors.HexColor("#16a34a")
+
+    def p(text, font="Helvetica", size=8, color=None, align="LEFT", bold=False):
+        fn = "Helvetica-Bold" if bold else font
+        al = {"LEFT":0,"CENTER":1,"RIGHT":2}.get(align,0)
+        return Paragraph(text, ParagraphStyle("s", fontName=fn, fontSize=size, textColor=color or DARK, alignment=al, leading=size+3))
+
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=12*mm, bottomMargin=12*mm)
-    s   = []
-    buyer  = order.buyer
-    vendor = order.vendor
-    bn  = buyer.full_name or buyer.phone_number
-    sg  = getattr(vendor, 'gstin', 'N/A') or 'N/A'
-    dt  = order.created_at.strftime('%d %b %Y')
-    inv = inv_num(order, 'INV')
-    pm  = 'COD — Paid' if order.payment_mode == 'cod' else 'Online — Paid'
+    s = []
+
+    buyer        = order.buyer
+    vendor       = order.vendor
+    bn           = getattr(buyer, 'full_name', None) or buyer.phone_number
+    sg           = getattr(vendor, 'gstin', None) or "N/A"
+    vendor_state = getattr(vendor, 'state', PLATFORM_STATE) or PLATFORM_STATE
+    buyer_state  = PLATFORM_STATE
+    try:
+        addr = buyer.addresses.filter(is_default=True).first() or buyer.addresses.first()
+        if addr and addr.state:
+            buyer_state = addr.state
+    except:
+        pass
+
+    vendor_sc   = get_state_code(vendor_state)
+    buyer_sc    = get_state_code(buyer_state)
+    platform_sc = get_state_code(PLATFORM_STATE)
+    dt          = order.created_at.strftime("%d %b %Y")
+    pm          = "COD — Paid" if order.payment_mode == "cod" else "Online — Paid"
+    fy          = "2526"
+
+    # Wrapper invoice number
+    wrapper_no  = InvoiceSequence.next_number("UNV-BI", fy)
+
+    # Section A invoice numbers
+    seller_code = vendor.shop_name[:3].upper()
+    sec_a_no    = InvoiceSequence.next_number(f"{seller_code}-SI", fy)
+    sec_b_no    = InvoiceSequence.next_number("UNV-PF", fy)
 
     # ── Header ──────────────────────────────────────────────────
-    left  = _p('<b><font color="#111827" size="18">Univerin</font></b>', size=18)
-    right = _p(
-        f'<b>TAX INVOICE / ORDER RECEIPT</b><br/>'
-        f'<font size="8" color="#6b7280">Invoice: {inv}</font><br/>'
-        f'<font size="8" color="#6b7280">Order: #{order.order_number or str(order.id)[:12].upper()}</font><br/>'
-        f'<font size="8" color="#6b7280">Invoice date: {dt} &nbsp; Order date: {dt}</font><br/>'
-        f'<font size="8" color="#6b7280">Payment: {pm} &nbsp; Status: Delivered</font>',
-        size=9, align='RIGHT'
-    )
+    left  = p('<b><font color="#2563eb" size="20">Univerin</font></b>', size=20)
+    right = p(f'<b>ORDER SUMMARY & TAX INVOICES</b><br/><font size="8" color="#6b7280">Order #: {order.order_number}</font><br/><font size="8" color="#6b7280">Date: {dt}</font><br/><font size="8" color="#6b7280">Payment: {pm}</font><br/><font size="8" color="#6b7280">Ref: {wrapper_no}</font>', size=10, align='RIGHT')
     ht = Table([[left, right]], colWidths=[90*mm, 90*mm])
-    ht.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LINEBELOW',(0,0),(-1,0),0.5,colors.HexColor('#e5e7eb'))]))
+    ht.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP"),("LINEBELOW",(0,0),(-1,0),1,BLUE)]))
     s.append(ht)
+    s.append(Spacer(1,3*mm))
+
+    # Billed to
+    pd = [[
+        p("<b>Billed to:</b>",bold=True),
+        p(f"{bn} | Ph: {buyer.phone_number}<br/>{order.delivery_address or 'N/A'} | State: {buyer_state} ({buyer_sc})")
+    ]]
+    bt = Table(pd, colWidths=[25*mm, 155*mm])
+    bt.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP"),("PADDING",(0,0),(-1,-1),4),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb"))]))
+    s.append(bt)
     s.append(Spacer(1,5*mm))
 
-    # ── Buyer + Seller ──────────────────────────────────────────
-    pd = [
-        [_p('<b>Buyer details</b>', bold=True, size=8, color=GRAY),
-         _p('<b>Seller (supplier of goods)</b>', bold=True, size=8, color=GRAY)],
-        [_p(f'{bn}<br/>Ph: {buyer.phone_number}<br/>{order.delivery_address or "N/A"}'),
-         _p(f'{vendor.shop_name}<br/>{vendor.address or vendor.town or "N/A"}<br/>GSTIN: {sg}<br/><br/>Goods listed below are supplied by the respective seller.', color=GRAY)]
+    # ══════════════════════════════════════════════════════════
+    # SECTION A — TAX INVOICE FROM SELLER
+    # ══════════════════════════════════════════════════════════
+    s.append(p("[ SECTION A — TAX INVOICE FROM SELLER ]", bold=True, size=9, color=BLUE))
+    s.append(Spacer(1,2*mm))
+
+    sec_a_interstate = is_interstate(vendor_state, buyer_state)
+    sec_a_info = [
+        [p(f"Issued by: {vendor.shop_name}",bold=True), p(f"GSTIN: {sg}",align="RIGHT")],
+        [p(f"Invoice #: {sec_a_no} | Date: {dt}"), p(f"Place of supply: {buyer_state} ({buyer_sc}) | Reverse charge: No",align="RIGHT")],
     ]
-    pt = Table(pd, colWidths=[90*mm, 90*mm])
-    pt.setStyle(TableStyle([
-        ('BACKGROUND',(0,0),(-1,0),LIGHT),
-        ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e5e7eb')),
-        ('INNERGRID',(0,0),(-1,-1),0.5,colors.HexColor('#e5e7eb')),
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('PADDING',(0,0),(-1,-1),6)
-    ]))
-    s.append(pt)
-    s.append(Spacer(1,4*mm))
-
-    # ── Billed by ───────────────────────────────────────────────
-    s.append(_p('<b>Billed / facilitated by</b>', bold=True, size=8, color=GRAY))
+    sit = Table(sec_a_info, colWidths=[90*mm,90*mm])
+    sit.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),4),("BOX",(0,0),(-1,-1),0.5,BLUE)]))
+    s.append(sit)
     s.append(Spacer(1,2*mm))
-    bd = [[
-        _p(f'<b>{UNIVERIN["name"]}</b><br/>{UNIVERIN["address"]}<br/>GSTIN: {UNIVERIN["gstin"]}'),
-        _p(f'{UNIVERIN["email"]}<br/>Ph: {UNIVERIN["phone"]}', align='RIGHT')
-    ]]
-    bt = Table(bd, colWidths=[120*mm, 60*mm])
-    bt.setStyle(TableStyle([('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e5e7eb')),('PADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
-    s.append(bt)
-    s.append(Spacer(1,4*mm))
 
-    # ── Goods table ─────────────────────────────────────────────
-    s.append(_p('<b>Goods supplied by seller</b>', bold=True, size=8, color=GRAY))
-    s.append(Spacer(1,2*mm))
-    rows = [[
-        _p('<b>Item</b>', bold=True),
-        _p('<b>Qty</b>', bold=True, align='CENTER'),
-        _p('<b>Unit price</b>', bold=True, align='RIGHT'),
-        _p('<b>GST</b>', bold=True, align='CENTER'),
-        _p('<b>Amount</b>', bold=True, align='RIGHT'),
-    ]]
-    seller_total = Decimal('0')
+    # Seller items table
+    if sec_a_interstate:
+        hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>GST%</b>",bold=True,align="CENTER"),p("<b>IGST</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
+        cw = [45*mm,16*mm,12*mm,22*mm,22*mm,12*mm,20*mm,22*mm]
+    else:
+        hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>GST%</b>",bold=True,align="CENTER"),p("<b>CGST</b>",bold=True,align="RIGHT"),p("<b>SGST</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
+        cw = [38*mm,14*mm,10*mm,18*mm,18*mm,10*mm,16*mm,16*mm,18*mm]
+
+    rows = [hdr]
+    sec_a_taxable = Decimal("0")
+    sec_a_cgst    = Decimal("0")
+    sec_a_sgst    = Decimal("0")
+    sec_a_igst    = Decimal("0")
+
     for item in order.items.all():
-        pr = Decimal(str(item.price))
-        lt = pr * item.quantity
-        seller_total += lt
-        rows.append([
-            _p(item.product.name),
-            _p(str(item.quantity), align='CENTER'),
-            _p(f'Rs.{pr:.2f}', align='RIGHT'),
-            _p('Included', color=GRAY, align='CENTER'),
-            _p(f'Rs.{lt:.2f}', align='RIGHT'),
-        ])
-    it = Table(rows, colWidths=[70*mm, 18*mm, 30*mm, 25*mm, 30*mm])
-    it.setStyle(TableStyle([
-        ('BACKGROUND',(0,0),(-1,0),LIGHT),
-        ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e5e7eb')),
-        ('INNERGRID',(0,0),(-1,-1),0.5,colors.HexColor('#e5e7eb')),
-        ('PADDING',(0,0),(-1,-1),5)
-    ]))
+        pr      = Decimal(str(item.price))
+        taxable = pr * item.quantity
+        gst_pct = Decimal(str(item.product.gst_percentage or 0))
+        hsn     = getattr(item.product, 'hsn_code', None) or "—"
+        cgst, sgst, igst = calc_gst(taxable, gst_pct, vendor_state, buyer_state)
+        total_line = taxable + cgst + sgst + igst
+        sec_a_taxable += taxable
+        sec_a_cgst    += cgst
+        sec_a_sgst    += sgst
+        sec_a_igst    += igst
+        if sec_a_interstate:
+            rows.append([p(item.product.name),p(hsn,align="CENTER"),p(str(item.quantity),align="CENTER"),p(f"Rs.{pr:.2f}",align="RIGHT"),p(f"Rs.{taxable:.2f}",align="RIGHT"),p(f"{gst_pct:.0f}%",align="CENTER"),p(f"Rs.{igst:.2f}",align="RIGHT"),p(f"Rs.{total_line:.2f}",align="RIGHT")])
+        else:
+            rows.append([p(item.product.name),p(hsn,align="CENTER"),p(str(item.quantity),align="CENTER"),p(f"Rs.{pr:.2f}",align="RIGHT"),p(f"Rs.{taxable:.2f}",align="RIGHT"),p(f"{gst_pct:.0f}%",align="CENTER"),p(f"Rs.{cgst:.2f}",align="RIGHT"),p(f"Rs.{sgst:.2f}",align="RIGHT"),p(f"Rs.{total_line:.2f}",align="RIGHT")])
+
+    it = Table(rows, colWidths=cw)
+    it.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),3),("FONTSIZE",(0,0),(-1,-1),7)]))
     s.append(it)
-    st = Table([[_p('Seller goods total (incl. GST)', bold=True), _p(f'Rs.{seller_total:.2f}', bold=True, align='RIGHT')]], colWidths=[130*mm, 40*mm])
-    st.setStyle(TableStyle([('PADDING',(0,0),(-1,-1),5),('LINEABOVE',(0,0),(-1,0),0.5,colors.HexColor('#e5e7eb'))]))
-    s.append(st)
-    s.append(Spacer(1,4*mm))
 
-    # ── Univerin charges ────────────────────────────────────────
-    s.append(_p('<b>Charges by Univerin</b>', bold=True, size=8, color=GRAY))
+    sec_a_total = sec_a_taxable + sec_a_cgst + sec_a_sgst + sec_a_igst
+    sec_a_summary = [[p("Taxable"), p(f"Rs.{sec_a_taxable:.2f}",align="RIGHT")]]
+    if sec_a_interstate:
+        sec_a_summary.append([p("IGST"), p(f"Rs.{sec_a_igst:.2f}",align="RIGHT")])
+    else:
+        sec_a_summary.append([p("CGST"), p(f"Rs.{sec_a_cgst:.2f}",align="RIGHT")])
+        sec_a_summary.append([p("SGST"), p(f"Rs.{sec_a_sgst:.2f}",align="RIGHT")])
+    sec_a_summary.append([p("<b>Section A Total</b>",bold=True,color=BLUE), p(f"<b>Rs.{sec_a_total:.2f}</b>",bold=True,color=BLUE,align="RIGHT")])
+    sat = Table(sec_a_summary, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    sat.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),3)]))
+    s.append(sat)
+    s.append(Spacer(1,5*mm))
+
+    # ══════════════════════════════════════════════════════════
+    # SECTION B — TAX INVOICE FROM UNIVERIN (Platform)
+    # ══════════════════════════════════════════════════════════
+    s.append(p("[ SECTION B — TAX INVOICE FROM UNIVERIN (Platform service) ]", bold=True, size=9, color=GREEN))
     s.append(Spacer(1,2*mm))
-    df  = Decimal(str(order.delivery_fee or 0))
-    gst_on_del = Decimal(str(order.gst_on_delivery or 0))
-    df_total = df + gst_on_del
+
+    sec_b_interstate = is_interstate(PLATFORM_STATE, buyer_state)
+    sec_b_info = [
+        [p("Issued by: Univerin Private Limited",bold=True), p(f"GSTIN: {PLATFORM_GSTIN}",align="RIGHT")],
+        [p(f"Invoice #: {sec_b_no} | Date: {dt}"), p(f"Place of supply: {buyer_state} ({buyer_sc}) | Reverse charge: No",align="RIGHT")],
+    ]
+    sbit = Table(sec_b_info, colWidths=[90*mm,90*mm])
+    sbit.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#f0fdf4")),("PADDING",(0,0),(-1,-1),4),("BOX",(0,0),(-1,-1),0.5,GREEN)]))
+    s.append(sbit)
+    s.append(Spacer(1,2*mm))
+
     pf  = Decimal(str(order.platform_fee or 10))
-    gst_on_pf = round(pf * Decimal("0.18"), 2)
-    pfg = pf + gst_on_pf
-    univerin_total = df_total + pfg
-    ch = Table([
-        [_p('Delivery fee (incl. GST 18%)<br/>Logistics service by Univerin'), _p(f'Rs.{df_total:.2f}', align='RIGHT')],
-        [_p(f'Platform fee (incl. GST 18%)<br/>Marketplace facilitation by Univerin'), _p(f'Rs.{pfg}', align='RIGHT')],
-    ], colWidths=[140*mm, 30*mm])
-    ch.setStyle(TableStyle([
-        ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e5e7eb')),
-        ('INNERGRID',(0,0),(-1,-1),0.5,colors.HexColor('#e5e7eb')),
-        ('PADDING',(0,0),(-1,-1),6),
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-    ]))
-    s.append(ch)
-    ct = Table([[_p('Univerin charges total (incl. GST)', bold=True), _p(f'Rs.{univerin_total:.2f}', bold=True, align='RIGHT')]], colWidths=[130*mm, 40*mm])
-    ct.setStyle(TableStyle([('PADDING',(0,0),(-1,-1),5),('LINEABOVE',(0,0),(-1,0),0.5,colors.HexColor('#e5e7eb'))]))
-    s.append(ct)
-    s.append(Spacer(1,4*mm))
+    df  = Decimal(str(order.delivery_fee or 0))
+    pf_cgst, pf_sgst, pf_igst = calc_gst(pf, 18, PLATFORM_STATE, buyer_state)
+    df_cgst, df_sgst, df_igst = calc_gst(df, 18, PLATFORM_STATE, buyer_state)
+    pf_total = pf + pf_cgst + pf_sgst + pf_igst
+    df_total = df + df_cgst + df_sgst + df_igst
+    sec_b_total = pf_total + df_total
 
-    # ── Payment summary ─────────────────────────────────────────
-    s.append(_p('<b>Payment summary</b>', bold=True, size=8, color=GRAY))
-    s.append(Spacer(1,2*mm))
+    if sec_b_interstate:
+        hdr_b = [p("<b>Description</b>",bold=True),p("<b>SAC</b>",bold=True,align="CENTER"),p("<b>Base</b>",bold=True,align="RIGHT"),p("<b>GST 18%</b>",bold=True,align="RIGHT"),p("<b>IGST</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
+        rows_b = [hdr_b]
+        if pf > 0:
+            rows_b.append([p("Platform fee — Marketplace facilitation"),p("998599",align="CENTER"),p(f"Rs.{pf:.2f}",align="RIGHT"),p("18%",align="RIGHT"),p(f"Rs.{pf_igst:.2f}",align="RIGHT"),p(f"Rs.{pf_total:.2f}",align="RIGHT")])
+        if df > 0:
+            rows_b.append([p("Delivery fee — Logistics service"),p("996813",align="CENTER"),p(f"Rs.{df:.2f}",align="RIGHT"),p("18%",align="RIGHT"),p(f"Rs.{df_igst:.2f}",align="RIGHT"),p(f"Rs.{df_total:.2f}",align="RIGHT")])
+        bt2 = Table(rows_b, colWidths=[60*mm,18*mm,25*mm,20*mm,25*mm,25*mm])
+    else:
+        hdr_b = [p("<b>Description</b>",bold=True),p("<b>SAC</b>",bold=True,align="CENTER"),p("<b>Base</b>",bold=True,align="RIGHT"),p("<b>CGST 9%</b>",bold=True,align="RIGHT"),p("<b>SGST 9%</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
+        rows_b = [hdr_b]
+        if pf > 0:
+            rows_b.append([p("Platform fee — Marketplace facilitation"),p("998599",align="CENTER"),p(f"Rs.{pf:.2f}",align="RIGHT"),p(f"Rs.{pf_cgst:.2f}",align="RIGHT"),p(f"Rs.{pf_sgst:.2f}",align="RIGHT"),p(f"Rs.{pf_total:.2f}",align="RIGHT")])
+        if df > 0:
+            rows_b.append([p("Delivery fee — Logistics service"),p("996813",align="CENTER"),p(f"Rs.{df:.2f}",align="RIGHT"),p(f"Rs.{df_cgst:.2f}",align="RIGHT"),p(f"Rs.{df_sgst:.2f}",align="RIGHT"),p(f"Rs.{df_total:.2f}",align="RIGHT")])
+        bt2 = Table(rows_b, colWidths=[60*mm,18*mm,25*mm,22*mm,22*mm,26*mm])
+
+    bt2.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),3),("FONTSIZE",(0,0),(-1,-1),7)]))
+    s.append(bt2)
+
+    sec_b_summary = [[p("<b>Section B Total</b>",bold=True,color=GREEN), p(f"<b>Rs.{sec_b_total:.2f}</b>",bold=True,color=GREEN,align="RIGHT")]]
+    sbt2 = Table(sec_b_summary, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    sbt2.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#f0fdf4")),("PADDING",(0,0),(-1,-1),3)]))
+    s.append(sbt2)
+    s.append(Spacer(1,5*mm))
+
+    # ══════════════════════════════════════════════════════════
+    # GRAND TOTAL
+    # ══════════════════════════════════════════════════════════
     gt = Decimal(str(order.total_amount))
     td = [
-        [_p('Seller goods total'), _p(f'Rs.{seller_total:.2f}', align='RIGHT')],
-        [_p('Univerin charges'), _p(f'Rs.{univerin_total:.2f}', align='RIGHT')],
-        [_p('<b>Grand total paid</b>', bold=True, size=10), _p(f'<b>Rs.{gt:.2f}</b>', bold=True, size=10, align='RIGHT')],
+        [p("Section A — Seller goods total"), p(f"Rs.{sec_a_total:.2f}",align="RIGHT")],
+        [p("Section B — Platform charges total"), p(f"Rs.{sec_b_total:.2f}",align="RIGHT")],
+        [p("<b>Grand total paid</b>",bold=True,size=11,color=DARK), p(f"<b>Rs.{gt:.2f}</b>",bold=True,size=11,align="RIGHT")],
     ]
-    tt = Table(td, colWidths=[130*mm, 40*mm], hAlign='RIGHT')
-    tt.setStyle(TableStyle([
-        ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e5e7eb')),
-        ('LINEABOVE',(0,-1),(-1,-1),1,DARK),
-        ('BACKGROUND',(0,-1),(-1,-1),LIGHT),
-        ('PADDING',(0,0),(-1,-1),5)
-    ]))
+    tt = Table(td, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1.5,DARK),("BACKGROUND",(0,-1),(-1,-1),LIGHT),("PADDING",(0,0),(-1,-1),5)]))
     s.append(tt)
-    s.append(Spacer(1,5*mm))
-
-    # ── Footer ──────────────────────────────────────────────────
-    s.append(HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#e5e7eb')))
     s.append(Spacer(1,2*mm))
+    s.append(p(f"Amount in words: {amount_in_words(gt)}", color=GRAY, size=7))
+    s.append(Spacer(1,5*mm))
+    s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
     for n in [
-        'This is a computer-generated invoice and does not require a physical signature.',
-        'Goods are supplied by the respective seller listed above. Univerin is a marketplace facilitator only.',
-        'Delivery and platform services are provided by Univerin Private Limited (GSTIN: 37AADCU8846J1ZP).',
-        'GST on platform and delivery services is charged by Univerin Private Limited. GST on goods, wherever applicable, belongs to the seller.',
-        f'For support: {UNIVERIN["email"]} | Ph: {UNIVERIN["phone"]}',
+        "This is a presentation wrapper over two separate tax invoices (Section A from seller, Section B from Univerin).",
+        "Goods are supplied by the respective seller. Univerin is a marketplace facilitator only.",
+        "Platform and delivery services are provided by Univerin Private Limited (GSTIN: 37AADCU8846J1ZP).",
+        "This is a computer-generated document and does not require a physical signature.",
+        "For support: contact@univerin.in | Ph: 9000869619"
     ]:
-        s.append(_p('• ' + n, color=GRAY, size=7))
+        s.append(p("• "+n, color=GRAY, size=7))
     s.append(Spacer(1,3*mm))
-    s.append(HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#e5e7eb')))
-    s.append(_p(f'{UNIVERIN["name"]} | GSTIN: {UNIVERIN["gstin"]} | {UNIVERIN["email"]} | {UNIVERIN["phone"]}', color=GRAY, align='CENTER', size=7))
-    s.append(_p('Thank you for shopping with Univerin!', bold=True, color=DARK, align='CENTER'))
+    s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
+    s.append(p(f"Univerin Private Limited | GSTIN: {PLATFORM_GSTIN} | contact@univerin.in | 9000869619", color=GRAY, align="CENTER", size=7))
+    s.append(p("Thank you for shopping with Univerin!", bold=True, color=DARK, align="CENTER"))
     doc.build(s)
     buf.seek(0)
     return buf
