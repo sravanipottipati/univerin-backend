@@ -102,3 +102,27 @@ def platform_invoice(request, order_id):
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="platform_{str(order.id)[:8].upper()}.pdf"'
     return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def credit_note(request, order_id):
+    """Generate credit note for a refunded order"""
+    from .invoice_generator import generate_credit_note
+    from orders.models import Order, Refund
+    cn_type = request.GET.get('type', 'SELLER_TO_BUYER')
+    try:
+        order = Order.objects.get(id=order_id)
+        refund = order.refund
+        reason = refund.reason
+    except Exception:
+        return Response({'error': 'Order or refund not found'}, status=404)
+    try:
+        buffer = generate_credit_note(cn_type, order, reason)
+    except Exception as e:
+        import traceback
+        print("Credit note ERROR:", traceback.format_exc())
+        return Response({'error': str(e)}, status=500)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="credit_note_{str(order.id)[:8].upper()}.pdf"'
+    return response

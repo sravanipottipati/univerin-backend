@@ -977,3 +977,179 @@ def generate_platform_invoice(order):
     doc.build(s)
     buf.seek(0)
     return buf
+
+
+def generate_credit_note(original_invoice_type, order, reason="Refund/Return"):
+    """Generate Credit Note for refund"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.styles import ParagraphStyle
+    from io import BytesIO
+    from decimal import Decimal
+    from .tax_utils import calc_gst, is_interstate, get_state_code, PLATFORM_STATE, PLATFORM_GSTIN, amount_in_words
+    from .models import InvoiceSequence
+
+    BLUE  = colors.HexColor("#2563eb")
+    DARK  = colors.HexColor("#111827")
+    GRAY  = colors.HexColor("#6b7280")
+    LIGHT = colors.HexColor("#f3f4f6")
+    RED   = colors.HexColor("#dc2626")
+
+    def p(text, font="Helvetica", size=8, color=None, align="LEFT", bold=False):
+        fn = "Helvetica-Bold" if bold else font
+        al = {"LEFT":0,"CENTER":1,"RIGHT":2}.get(align,0)
+        return Paragraph(text, ParagraphStyle("s", fontName=fn, fontSize=size, textColor=color or DARK, alignment=al, leading=size+3))
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=12*mm, bottomMargin=12*mm)
+    s = []
+
+    vendor       = order.vendor
+    buyer        = order.buyer
+    bn           = getattr(buyer, 'full_name', None) or buyer.phone_number
+    vendor_state = getattr(vendor, 'state', PLATFORM_STATE) or PLATFORM_STATE
+    buyer_state  = PLATFORM_STATE
+    try:
+        addr = buyer.addresses.filter(is_default=True).first() or buyer.addresses.first()
+        if addr and addr.state:
+            buyer_state = addr.state
+    except:
+        pass
+
+    buyer_sc    = get_state_code(buyer_state)
+    vendor_sc   = get_state_code(vendor_state)
+    platform_sc = get_state_code(PLATFORM_STATE)
+    dt          = order.created_at.strftime("%d %b %Y")
+    fy          = "2526"
+    sg          = getattr(vendor, 'gstin', None) or "N/A"
+
+    # Determine series and issuer based on invoice type
+    if original_invoice_type == 'SELLER_TO_BUYER':
+        seller_code = vendor.shop_name[:3].upper()
+        cn_no = InvoiceSequence.next_number(f"{seller_code}-CN", fy)
+        issuer_name = vendor.shop_name
+        issuer_gstin = sg
+        title = "CREDIT NOTE (Against Seller Invoice)"
+        color = BLUE
+    elif original_invoice_type == 'PLATFORM_TO_BUYER':
+        cn_no = InvoiceSequence.next_number("UNV-CN-PF", fy)
+        issuer_name = "Univerin Private Limited"
+        issuer_gstin = PLATFORM_GSTIN
+        title = "CREDIT NOTE (Against Platform Invoice)"
+        color = BLUE
+    else:  # COMMISSION
+        cn_no = InvoiceSequence.next_number("UNV-CN-CM", fy)
+        issuer_name = "Univerin Private Limited"
+        issuer_gstin = PLATFORM_GSTIN
+        title = "CREDIT NOTE (Against Commission Invoice)"
+        color = BLUE
+
+    from datetime import datetime
+    today = datetime.now().strftime("%d %b %Y")
+
+    # Header
+    left  = p(f'<b><font color="#dc2626" size="20">CREDIT NOTE</font></b>', size=20)
+    right = p(f'<b>{title}</b><br/><font size="8" color="#6b7280">CN #: {cn_no}</font><br/><font size="8" color="#6b7280">Date: {today}</font><br/><font size="8" color="#6b7280">Against Order #: {order.order_number}</font><br/><font size="8" color="#6b7280">Reason: {reason}</font>', size=9, align='RIGHT')
+    ht = Table([[left, right]], colWidths=[90*mm, 90*mm])
+    ht.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP"),("LINEBELOW",(0,0),(-1,0),1,RED)]))
+    s.append(ht)
+    s.append(Spacer(1,3*mm))
+    s.append(p("This credit note reverses the charges in the original invoice.", color=RED, align="CENTER", size=8, bold=True))
+    s.append(Spacer(1,4*mm))
+
+    # Parties
+    pd = [
+        [p("<b>Issued by</b>",bold=True), p("<b>Issued to</b>",bold=True)],
+        [p(f"{issuer_name}<br/>GSTIN: {issuer_gstin}"),
+         p(f"{bn}<br/>Ph: {buyer.phone_number}<br/>{order.delivery_address or 'N/A'}")]
+    ]
+    pt = Table(pd, colWidths=[90*mm,90*mm])
+    pt.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("VALIGN",(0,0),(-1,-1),"TOP"),("PADDING",(0,0),(-1,-1),5)]))
+    s.append(pt)
+    s.append(Spacer(1,4*mm))
+
+    # Items being reversed
+    if original_invoice_type == 'SELLER_TO_BUYER':
+        s.append(p("<b>Items being credited back</b>",bold=True,size=9))
+        s.append(Spacer(1,2*mm))
+        interstate = is_interstate(vendor_state, buyer_state)
+        if interstate:
+            hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>IGST</b>",bold=True,align="RIGHT"),p("<b>Credit</b>",bold=True,align="RIGHT")]
+            cw = [50*mm,16*mm,12*mm,22*mm,22*mm,22*mm,26*mm]
+        else:
+            hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>CGST</b>",bold=True,align="RIGHT"),p("<b>SGST</b>",bold=True,align="RIGHT"),p("<b>Credit</b>",bold=True,align="RIGHT")]
+            cw = [42*mm,14*mm,10*mm,18*mm,18*mm,16*mm,16*mm,18*mm]
+
+        rows = [hdr]
+        total_credit = Decimal("0")
+        for item in order.items.all():
+            pr      = Decimal(str(item.price))
+            taxable = pr * item.quantity
+            gst_pct = Decimal(str(item.product.gst_percentage or 0))
+            hsn     = getattr(item.product, 'hsn_code', None) or "—"
+            cgst, sgst, igst = calc_gst(taxable, gst_pct, vendor_state, buyer_state)
+            credit  = taxable + cgst + sgst + igst
+            total_credit += credit
+            if interstate:
+                rows.append([p(item.product.name),p(hsn,align="CENTER"),p(str(item.quantity),align="CENTER"),p(f"Rs.{pr:.2f}",align="RIGHT"),p(f"Rs.{taxable:.2f}",align="RIGHT"),p(f"Rs.{igst:.2f}",align="RIGHT"),p(f"Rs.{credit:.2f}",align="RIGHT")])
+            else:
+                rows.append([p(item.product.name),p(hsn,align="CENTER"),p(str(item.quantity),align="CENTER"),p(f"Rs.{pr:.2f}",align="RIGHT"),p(f"Rs.{taxable:.2f}",align="RIGHT"),p(f"Rs.{cgst:.2f}",align="RIGHT"),p(f"Rs.{sgst:.2f}",align="RIGHT"),p(f"Rs.{credit:.2f}",align="RIGHT")])
+
+        it = Table(rows, colWidths=cw)
+        it.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),3),("FONTSIZE",(0,0),(-1,-1),7)]))
+        s.append(it)
+
+    elif original_invoice_type == 'PLATFORM_TO_BUYER':
+        pf = Decimal(str(order.platform_fee or 10))
+        df = Decimal(str(order.delivery_fee or 0))
+        pf_cgst, pf_sgst, pf_igst = calc_gst(pf, 18, PLATFORM_STATE, buyer_state)
+        df_cgst, df_sgst, df_igst = calc_gst(df, 18, PLATFORM_STATE, buyer_state)
+        total_credit = pf + pf_cgst + pf_sgst + pf_igst + df + df_cgst + df_sgst + df_igst
+
+        rows = [
+            [p("<b>Description</b>",bold=True),p("<b>Base</b>",bold=True,align="RIGHT"),p("<b>GST</b>",bold=True,align="RIGHT"),p("<b>Credit</b>",bold=True,align="RIGHT")],
+            [p("Platform fee credit"),p(f"Rs.{pf:.2f}",align="RIGHT"),p(f"Rs.{pf_cgst+pf_sgst+pf_igst:.2f}",align="RIGHT"),p(f"Rs.{pf+pf_cgst+pf_sgst+pf_igst:.2f}",align="RIGHT")],
+            [p("Delivery fee credit"),p(f"Rs.{df:.2f}",align="RIGHT"),p(f"Rs.{df_cgst+df_sgst+df_igst:.2f}",align="RIGHT"),p(f"Rs.{df+df_cgst+df_sgst+df_igst:.2f}",align="RIGHT")],
+        ]
+        it = Table(rows, colWidths=[80*mm,30*mm,30*mm,30*mm])
+        it.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),4)]))
+        s.append(it)
+    else:
+        comm = Decimal(str(order.commission_amount or 0))
+        comm_cgst, comm_sgst, comm_igst = calc_gst(comm, 18, PLATFORM_STATE, vendor_state)
+        total_credit = comm + comm_cgst + comm_sgst + comm_igst
+        rows = [
+            [p("<b>Description</b>",bold=True),p("<b>Amount</b>",bold=True,align="RIGHT")],
+            [p("Commission credit"),p(f"Rs.{comm:.2f}",align="RIGHT")],
+            [p("GST on commission credit"),p(f"Rs.{comm_cgst+comm_sgst+comm_igst:.2f}",align="RIGHT")],
+        ]
+        it = Table(rows, colWidths=[130*mm,40*mm])
+        it.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),4)]))
+        s.append(it)
+
+    s.append(Spacer(1,3*mm))
+    td = [[p("<b>Total credit amount</b>",bold=True,size=11,color=RED), p(f"<b>- Rs.{total_credit:.2f}</b>",bold=True,size=11,color=RED,align="RIGHT")]]
+    tt = Table(td, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),1,RED),("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#fef2f2")),("PADDING",(0,0),(-1,-1),6)]))
+    s.append(tt)
+    s.append(Spacer(1,2*mm))
+    s.append(p(f"Credit amount in words: {amount_in_words(total_credit)}", color=GRAY, size=7))
+    s.append(Spacer(1,4*mm))
+    s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
+    for n in [
+        f"This credit note is issued against Order #{order.order_number}.",
+        f"Reason: {reason}",
+        "This credit note reverses the tax liability in the original invoice.",
+        "This is a computer-generated credit note and does not require a physical signature.",
+        "For queries: contact@univerin.in | Ph: 9000869619"
+    ]:
+        s.append(p("• "+n, color=GRAY, size=7))
+    s.append(Spacer(1,3*mm))
+    s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
+    s.append(p(f"{issuer_name} | GSTIN: {issuer_gstin}", color=GRAY, align="CENTER", size=7))
+    s.append(p("Powering your local business.", bold=True, color=BLUE, align="CENTER"))
+    doc.build(s)
+    buf.seek(0)
+    return buf

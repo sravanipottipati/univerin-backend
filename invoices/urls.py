@@ -13,4 +13,5 @@ urlpatterns = [
     path('export/platform-zip/',             views_excel.platform_invoices_zip,  name='platform-zip'),
     path('export/commission-zip/',           views_excel.commission_invoices_zip, name='commission-zip'),
     path('tcs/',                             views.tcs_certificate,          name='tcs-certificate'),
+    path('credit-note/<uuid:order_id>/',     views.credit_note,              name='credit-note'),
 ]
