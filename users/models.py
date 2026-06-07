@@ -65,6 +65,7 @@ class Address(models.Model):
     label        = models.CharField(max_length=50, choices=LABEL_CHOICES, default='Home')
     full_address = models.TextField()
     town         = models.CharField(max_length=100)
+    state        = models.CharField(max_length=100, default='Andhra Pradesh')
     pincode      = models.CharField(max_length=10, blank=True, null=True)
     is_default   = models.BooleanField(default=False)
     created_at   = models.DateTimeField(auto_now_add=True)
