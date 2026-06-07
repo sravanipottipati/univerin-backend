@@ -405,3 +405,76 @@ def admin_billing_excel(request):
     response["Content-Disposition"] = f'attachment; filename="univerin_admin_billing_{month_name}.xlsx"'.replace(" ", "_")
     wb.save(response)
     return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def platform_invoices_zip(request):
+    """Monthly ZIP of all platform invoices (Doc 3) for admin GST filing"""
+    import zipfile
+    from io import BytesIO
+    from orders.models import Order
+    from .invoice_generator import generate_platform_invoice
+    from datetime import datetime
+
+    # Get month/year from query params
+    month = int(request.GET.get('month', datetime.now().month))
+    year  = int(request.GET.get('year',  datetime.now().year))
+
+    orders = Order.objects.filter(
+        status='delivered',
+        created_at__month=month,
+        created_at__year=year
+    ).prefetch_related('items__product', 'buyer__addresses')
+
+    zip_buf = BytesIO()
+    with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for order in orders:
+            try:
+                pdf_buf = generate_platform_invoice(order)
+                filename = f"platform_invoice_{order.order_number}.pdf"
+                zf.writestr(filename, pdf_buf.read())
+            except Exception as e:
+                print(f"Error generating platform invoice for {order.order_number}: {e}")
+
+    zip_buf.seek(0)
+    month_name = datetime(year, month, 1).strftime("%B_%Y")
+    response = HttpResponse(zip_buf, content_type='application/zip')
+    response['Content-Disposition'] = f'attachment; filename="platform_invoices_{month_name}.zip"'
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def commission_invoices_zip(request):
+    """Monthly ZIP of all commission invoices (Doc 4) for admin GST filing"""
+    import zipfile
+    from io import BytesIO
+    from orders.models import Order
+    from .invoice_generator import generate_commission_invoice
+    from datetime import datetime
+
+    month = int(request.GET.get('month', datetime.now().month))
+    year  = int(request.GET.get('year',  datetime.now().year))
+
+    orders = Order.objects.filter(
+        status='delivered',
+        created_at__month=month,
+        created_at__year=year
+    ).prefetch_related('items__product')
+
+    zip_buf = BytesIO()
+    with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for order in orders:
+            try:
+                pdf_buf = generate_commission_invoice(order)
+                filename = f"commission_invoice_{order.order_number}.pdf"
+                zf.writestr(filename, pdf_buf.read())
+            except Exception as e:
+                print(f"Error generating commission invoice for {order.order_number}: {e}")
+
+    zip_buf.seek(0)
+    month_name = datetime(year, month, 1).strftime("%B_%Y")
+    response = HttpResponse(zip_buf, content_type='application/zip')
+    response['Content-Disposition'] = f'attachment; filename="commission_invoices_{month_name}.zip"'
+    return response

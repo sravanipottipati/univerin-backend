@@ -10,5 +10,7 @@ urlpatterns = [
     path('seller/<uuid:order_id>/',          views.seller_dashboard_invoice, name='seller-invoice'),
     path('settlement/',                      views.settlement_statement,     name='settlement'),
     path('platform/<uuid:order_id>/',        views.platform_invoice,         name='platform-invoice'),
+    path('export/platform-zip/',             views_excel.platform_invoices_zip,  name='platform-zip'),
+    path('export/commission-zip/',           views_excel.commission_invoices_zip, name='commission-zip'),
     path('tcs/',                             views.tcs_certificate,          name='tcs-certificate'),
 ]
