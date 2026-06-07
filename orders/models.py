@@ -191,3 +191,24 @@ class ReturnRequest(models.Model):
 
     def __str__(self):
         return f"Return for {self.order.order_number}"
+
+
+class Refund(models.Model):
+    STATUS_CHOICES = (
+        ('requested', 'Requested'),
+        ('approved',  'Approved'),
+        ('rejected',  'Rejected'),
+        ('processed', 'Processed'),
+    )
+    id           = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order        = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='refund')
+    requested_by = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='refunds')
+    reason       = models.TextField()
+    status       = models.CharField(max_length=20, choices=STATUS_CHOICES, default='requested')
+    admin_note   = models.TextField(blank=True, null=True)
+    approved_by  = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_refunds')
+    requested_at = models.DateTimeField(auto_now_add=True)
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Refund for {self.order.order_number} - {self.status}"

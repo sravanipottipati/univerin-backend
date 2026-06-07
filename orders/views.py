@@ -545,3 +545,106 @@ def submit_return(request, order_id):
         'order_id': str(order.id),
         'reason': reason,
     })
+
+
+class RefundRequestView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+        """Buyer requests a refund"""
+        from .models import Refund
+        try:
+            order = Order.objects.get(id=order_id, buyer=request.user, status='delivered')
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found or not eligible for refund'}, status=404)
+
+        if hasattr(order, 'refund'):
+            return Response({'error': 'Refund already requested for this order'}, status=400)
+
+        reason = request.data.get('reason', '').strip()
+        if not reason:
+            return Response({'error': 'Please provide a reason for refund'}, status=400)
+
+        refund = Refund.objects.create(
+            order=order,
+            requested_by=request.user,
+            reason=reason,
+            status='requested'
+        )
+        return Response({
+            'message': 'Refund request submitted successfully',
+            'refund_id': str(refund.id),
+            'status': refund.status
+        }, status=201)
+
+    def get(self, request, order_id):
+        """Get refund status for an order"""
+        from .models import Refund
+        try:
+            order = Order.objects.get(id=order_id, buyer=request.user)
+            refund = order.refund
+            return Response({
+                'refund_id': str(refund.id),
+                'status': refund.status,
+                'reason': refund.reason,
+                'admin_note': refund.admin_note,
+                'requested_at': refund.requested_at,
+            })
+        except (Order.DoesNotExist, Refund.DoesNotExist):
+            return Response({'error': 'No refund found'}, status=404)
+
+
+class AdminRefundView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Admin — list all refund requests"""
+        from .models import Refund
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=403)
+        refunds = Refund.objects.select_related('order', 'requested_by').order_by('-requested_at')
+        data = [{
+            'refund_id':    str(r.id),
+            'order_number': r.order.order_number,
+            'buyer':        r.requested_by.phone_number,
+            'reason':       r.reason,
+            'status':       r.status,
+            'admin_note':   r.admin_note,
+            'requested_at': r.requested_at,
+            'amount':       float(r.order.total_amount),
+        } for r in refunds]
+        return Response(data)
+
+    def post(self, request, refund_id):
+        """Admin — approve or reject a refund"""
+        from .models import Refund
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=403)
+        try:
+            refund = Refund.objects.get(id=refund_id)
+        except Refund.DoesNotExist:
+            return Response({'error': 'Refund not found'}, status=404)
+
+        action     = request.data.get('action')  # 'approve' or 'reject'
+        admin_note = request.data.get('admin_note', '')
+
+        if action == 'approve':
+            refund.status     = 'approved'
+            refund.admin_note = admin_note
+            refund.approved_by = request.user
+            refund.save()
+            # Generate credit notes
+            try:
+                from invoices.invoice_generator import generate_seller_dashboard_invoice, generate_commission_invoice
+                # TODO: generate credit note PDFs
+            except Exception as e:
+                print(f"Credit note generation error: {e}")
+            return Response({'message': 'Refund approved', 'status': 'approved'})
+
+        elif action == 'reject':
+            refund.status     = 'rejected'
+            refund.admin_note = admin_note
+            refund.save()
+            return Response({'message': 'Refund rejected', 'status': 'rejected'})
+
+        return Response({'error': 'Invalid action. Use approve or reject'}, status=400)
