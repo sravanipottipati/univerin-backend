@@ -81,12 +81,14 @@ class InvoiceSequence(models.Model):
 
     @classmethod
     def next_number(cls, series, fy='2526'):
-        obj, _ = cls.objects.select_for_update().get_or_create(
-            series=series, fy=fy,
-            defaults={'last_no': 0}
-        )
-        obj.last_no += 1
-        obj.save()
+        from django.db import transaction
+        with transaction.atomic():
+            obj, _ = cls.objects.select_for_update().get_or_create(
+                series=series, fy=fy,
+                defaults={'last_no': 0}
+            )
+            obj.last_no += 1
+            obj.save()
         return f"{series}/{fy}/{str(obj.last_no).zfill(6)}"
 
     def __str__(self):
