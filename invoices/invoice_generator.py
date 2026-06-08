@@ -258,7 +258,7 @@ def generate_buyer_invoice(order):
     # ══════════════════════════════════════════════════════════
     # GRAND TOTAL
     # ══════════════════════════════════════════════════════════
-    gt = Decimal(str(order.total_amount))
+    gt = sec_a_total + sec_b_total
     td = [
         [p("Section A — Seller goods total"), p(f"Rs.{sec_a_total:.2f}",align="RIGHT")],
         [p("Section B — Platform charges total"), p(f"Rs.{sec_b_total:.2f}",align="RIGHT")],
@@ -320,7 +320,9 @@ def generate_commission_invoice(order):
     platform_sc  = get_state_code(PLATFORM_STATE)
     interstate   = is_interstate(PLATFORM_STATE, vendor_state)
     order_date   = order.created_at.strftime("%d %b %Y")
-    fy           = "2526"
+    from datetime import date as _date
+    _today = _date.today()
+    fy = f"{str(_today.year)[2:]}{str(_today.year+1)[2:]}" if _today.month >= 4 else f"{str(_today.year-1)[2:]}{str(_today.year)[2:]}"
     inv_no       = InvoiceSequence.next_number("UNV-CM", fy)
 
     sub  = Decimal(str(order.subtotal or 0))
@@ -430,7 +432,9 @@ def generate_settlement_statement(vendor, period_start, period_end):
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=12*mm, bottomMargin=12*mm)
     s = []
     today     = datetime.now()
-    fy        = "2526"
+    from datetime import date as _date
+    _today = _date.today()
+    fy = f"{str(_today.year)[2:]}{str(_today.year+1)[2:]}" if _today.month >= 4 else f"{str(_today.year-1)[2:]}{str(_today.year)[2:]}"
     stmt_no   = InvoiceSequence.next_number("UNV-SS", fy)
     pay_date  = (period_end + timedelta(days=3)).strftime("%d %b %Y")
 
@@ -755,7 +759,9 @@ def generate_seller_dashboard_invoice(order):
     sg           = getattr(vendor, "gstin", None) or "N/A"
     sp           = getattr(vendor, "pan", None) or "N/A"
     order_date   = order.created_at.strftime("%d %b %Y")
-    fy           = "2526"
+    from datetime import date as _date
+    _today = _date.today()
+    fy           = f"{str(_today.year)[2:]}{str(_today.year+1)[2:]}" if _today.month >= 4 else f"{str(_today.year-1)[2:]}{str(_today.year)[2:]}"
 
     # Generate sequential invoice number
     seller_code  = vendor.shop_name[:3].upper()
