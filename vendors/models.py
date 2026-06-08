@@ -45,6 +45,7 @@ class Vendor(models.Model):
     delivery_radius         = models.FloatField(default=5.0)
     # ─────────────────────────────────────────────────────────────────────────
     platform_fee            = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    min_order               = models.DecimalField(max_digits=8, decimal_places=2, default=100)
     wallet_balance          = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     rating                  = models.FloatField(default=0.0)
     total_reviews           = models.IntegerField(default=0)
