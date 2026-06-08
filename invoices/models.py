@@ -80,7 +80,14 @@ class InvoiceSequence(models.Model):
         unique_together = ('series', 'fy')
 
     @classmethod
-    def next_number(cls, series, fy='2526'):
+    def next_number(cls, series, fy=None):
+        if fy is None:
+            from datetime import date
+            today = date.today()
+            if today.month >= 4:
+                fy = f"{str(today.year)[2:]}{str(today.year+1)[2:]}"
+            else:
+                fy = f"{str(today.year-1)[2:]}{str(today.year)[2:]}"
         from django.db import transaction
         with transaction.atomic():
             obj, _ = cls.objects.select_for_update().get_or_create(

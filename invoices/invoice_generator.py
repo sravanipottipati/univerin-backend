@@ -113,7 +113,8 @@ def generate_buyer_invoice(order):
     platform_sc = get_state_code(PLATFORM_STATE)
     dt          = order.created_at.strftime("%d %b %Y")
     pm          = "COD — Paid" if order.payment_mode == "cod" else "Online — Paid"
-    fy          = "2526"
+    today_d = __import__('datetime').date.today()
+    fy          = f"{str(today_d.year)[2:]}{str(today_d.year+1)[2:]}" if today_d.month >= 4 else f"{str(today_d.year-1)[2:]}{str(today_d.year)[2:]}"
 
     # Wrapper invoice number
     wrapper_no  = InvoiceSequence.next_number("UNV-BI", fy)
@@ -163,7 +164,7 @@ def generate_buyer_invoice(order):
         cw = [45*mm,16*mm,12*mm,22*mm,22*mm,12*mm,20*mm,22*mm]
     else:
         hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>GST%</b>",bold=True,align="CENTER"),p("<b>CGST</b>",bold=True,align="RIGHT"),p("<b>SGST</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
-        cw = [38*mm,14*mm,10*mm,18*mm,18*mm,10*mm,16*mm,16*mm,18*mm]
+        cw = [36*mm,14*mm,10*mm,18*mm,18*mm,14*mm,14*mm,14*mm,20*mm]
 
     rows = [hdr]
     sec_a_taxable = Decimal("0")
@@ -597,7 +598,8 @@ def generate_tcs_certificate(vendor, quarter_start, quarter_end, quarter_name):
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=12*mm, bottomMargin=12*mm)
     s = []
     today    = datetime.now()
-    fy       = "2526"
+    today_d = __import__('datetime').date.today()
+    fy       = f"{str(today_d.year)[2:]}{str(today_d.year+1)[2:]}" if today_d.month >= 4 else f"{str(today_d.year-1)[2:]}{str(today_d.year)[2:]}"
     cert_no  = InvoiceSequence.next_number(f"UNV-TCS-{quarter_name}", fy)
     vendor_state = getattr(vendor, "state", PLATFORM_STATE) or PLATFORM_STATE
     sg = getattr(vendor, "gstin", None) or "N/A"
@@ -894,7 +896,8 @@ def generate_platform_invoice(order):
     platform_sc = get_state_code(PLATFORM_STATE)
     interstate  = is_interstate(PLATFORM_STATE, buyer_state)
     dt          = order.created_at.strftime("%d %b %Y")
-    fy          = "2526"
+    today_d = __import__('datetime').date.today()
+    fy          = f"{str(today_d.year)[2:]}{str(today_d.year+1)[2:]}" if today_d.month >= 4 else f"{str(today_d.year-1)[2:]}{str(today_d.year)[2:]}"
     inv_no      = InvoiceSequence.next_number("UNV-PF", fy)
 
     pf  = Decimal(str(order.platform_fee or 10))
@@ -1022,7 +1025,8 @@ def generate_credit_note(original_invoice_type, order, reason="Refund/Return"):
     vendor_sc   = get_state_code(vendor_state)
     platform_sc = get_state_code(PLATFORM_STATE)
     dt          = order.created_at.strftime("%d %b %Y")
-    fy          = "2526"
+    today_d = __import__('datetime').date.today()
+    fy          = f"{str(today_d.year)[2:]}{str(today_d.year+1)[2:]}" if today_d.month >= 4 else f"{str(today_d.year-1)[2:]}{str(today_d.year)[2:]}"
     sg          = getattr(vendor, 'gstin', None) or "N/A"
 
     # Determine series and issuer based on invoice type
