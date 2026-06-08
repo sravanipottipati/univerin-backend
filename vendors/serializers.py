@@ -57,13 +57,7 @@ class VendorSerializer(serializers.ModelSerializer):
     min_order_value = serializers.SerializerMethodField()
 
     def get_min_order_value(self, obj):
-        mov_map = {
-            'restaurant':  499,
-            'supermarket': 699,
-            'bakery':      399,
-            'veg_fruits':  199,
-        }
-        return mov_map.get(obj.category, 199)
+        return float(obj.min_order) if obj.min_order else 100
 
     def get_distance(self, obj):
         request = self.context.get('request')
