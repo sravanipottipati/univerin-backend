@@ -164,7 +164,7 @@ def generate_buyer_invoice(order):
         cw = [45*mm,16*mm,12*mm,22*mm,22*mm,12*mm,20*mm,22*mm]
     else:
         hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>GST%</b>",bold=True,align="CENTER",size=7),p("<b>CGST</b>",bold=True,align="RIGHT"),p("<b>SGST</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
-        cw = [45*mm,14*mm,10*mm,22*mm,22*mm,16*mm,17*mm,17*mm,17*mm]
+        cw = [40*mm,13*mm,8*mm,20*mm,20*mm,15*mm,16*mm,16*mm,18*mm]
 
     rows = [hdr]
     sec_a_taxable = Decimal("0")
@@ -800,7 +800,7 @@ def generate_seller_dashboard_invoice(order):
         col_widths = [45*mm,16*mm,12*mm,22*mm,22*mm,12*mm,20*mm,22*mm]
     else:
         headers = [p("<b>Item</b>",bold=True), p("<b>HSN</b>",bold=True,align="CENTER"), p("<b>Qty</b>",bold=True,align="CENTER"), p("<b>Rate</b>",bold=True,align="RIGHT"), p("<b>Taxable</b>",bold=True,align="RIGHT"), p("<b>GST%</b>",bold=True,align="CENTER",size=7), p("<b>CGST</b>",bold=True,align="RIGHT"), p("<b>SGST</b>",bold=True,align="RIGHT"), p("<b>Total</b>",bold=True,align="RIGHT")]
-        col_widths = [45*mm,14*mm,10*mm,22*mm,22*mm,16*mm,17*mm,17*mm,17*mm]
+        col_widths = [40*mm,13*mm,8*mm,20*mm,20*mm,15*mm,16*mm,16*mm,18*mm]
 
     rows = [headers]
     subtotal = Decimal("0")
