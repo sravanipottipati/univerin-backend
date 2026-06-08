@@ -839,7 +839,7 @@ def generate_seller_dashboard_invoice(order):
         td.append([p(f"CGST"), p(f"Rs.{total_cgst:.2f}",align="RIGHT")])
         td.append([p(f"SGST"), p(f"Rs.{total_sgst:.2f}",align="RIGHT")])
     td.append([p("<b>Invoice Total</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{invoice_total:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")])
-    tt = Table(td, colWidths=[126*mm,40*mm], hAlign="RIGHT")
+    tt = Table(td, colWidths=[140*mm,40*mm])
     tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),4)]))
     s.append(tt)
     s.append(Spacer(1,2*mm))
