@@ -224,7 +224,7 @@ class MyShopView(APIView):
             vendor = request.user.vendor
         except Exception:
             return Response({'error': 'You do not have a shop yet'}, status=404)
-        allowed_fields = ['shop_name', 'address', 'town', 'phone_number', 'description', 'delivery_radius', 'latitude', 'longitude', 'category', 'min_order', 'bank_account_name', 'bank_account_number', 'bank_ifsc_code', 'bank_name']
+        allowed_fields = ['shop_name', 'address', 'town', 'state', 'gstin', 'pan', 'phone_number', 'description', 'delivery_radius', 'latitude', 'longitude', 'category', 'min_order', 'bank_account_name', 'bank_account_number', 'bank_ifsc_code', 'bank_name']
         for field in allowed_fields:
             if field in request.data:
                 setattr(vendor, field, request.data[field])

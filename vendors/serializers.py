@@ -52,7 +52,7 @@ class VendorSerializer(serializers.ModelSerializer):
                   'is_open', 'status', 'products',
                   'distance', 'created_at',
                   'bank_account_name', 'bank_account_number', 'bank_ifsc_code', 'bank_name',
-                  'min_order_value']
+                  'min_order_value', 'min_order']
 
     min_order_value = serializers.SerializerMethodField()
 
