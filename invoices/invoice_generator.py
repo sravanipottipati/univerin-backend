@@ -160,10 +160,10 @@ def generate_buyer_invoice(order):
 
     # Seller items table
     if sec_a_interstate:
-        hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>GST%</b>",bold=True,align="CENTER"),p("<b>IGST</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
+        hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>GST%</b>",bold=True,align="CENTER",size=7),p("<b>IGST</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
         cw = [45*mm,16*mm,12*mm,22*mm,22*mm,12*mm,20*mm,22*mm]
     else:
-        hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>GST%</b>",bold=True,align="CENTER"),p("<b>CGST</b>",bold=True,align="RIGHT"),p("<b>SGST</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
+        hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>GST%</b>",bold=True,align="CENTER",size=7),p("<b>CGST</b>",bold=True,align="RIGHT"),p("<b>SGST</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
         cw = [36*mm,14*mm,10*mm,18*mm,18*mm,14*mm,14*mm,14*mm,20*mm]
 
     rows = [hdr]
@@ -796,10 +796,10 @@ def generate_seller_dashboard_invoice(order):
     s.append(Spacer(1,2*mm))
 
     if interstate:
-        headers = [p("<b>Item</b>",bold=True), p("<b>HSN</b>",bold=True,align="CENTER"), p("<b>Qty</b>",bold=True,align="CENTER"), p("<b>Rate</b>",bold=True,align="RIGHT"), p("<b>Taxable</b>",bold=True,align="RIGHT"), p("<b>GST%</b>",bold=True,align="CENTER"), p("<b>IGST</b>",bold=True,align="RIGHT"), p("<b>Total</b>",bold=True,align="RIGHT")]
+        headers = [p("<b>Item</b>",bold=True), p("<b>HSN</b>",bold=True,align="CENTER"), p("<b>Qty</b>",bold=True,align="CENTER"), p("<b>Rate</b>",bold=True,align="RIGHT"), p("<b>Taxable</b>",bold=True,align="RIGHT"), p("<b>GST%</b>",bold=True,align="CENTER",size=7), p("<b>IGST</b>",bold=True,align="RIGHT"), p("<b>Total</b>",bold=True,align="RIGHT")]
         col_widths = [45*mm,16*mm,12*mm,22*mm,22*mm,12*mm,20*mm,22*mm]
     else:
-        headers = [p("<b>Item</b>",bold=True), p("<b>HSN</b>",bold=True,align="CENTER"), p("<b>Qty</b>",bold=True,align="CENTER"), p("<b>Rate</b>",bold=True,align="RIGHT"), p("<b>Taxable</b>",bold=True,align="RIGHT"), p("<b>GST%</b>",bold=True,align="CENTER"), p("<b>CGST</b>",bold=True,align="RIGHT"), p("<b>SGST</b>",bold=True,align="RIGHT"), p("<b>Total</b>",bold=True,align="RIGHT")]
+        headers = [p("<b>Item</b>",bold=True), p("<b>HSN</b>",bold=True,align="CENTER"), p("<b>Qty</b>",bold=True,align="CENTER"), p("<b>Rate</b>",bold=True,align="RIGHT"), p("<b>Taxable</b>",bold=True,align="RIGHT"), p("<b>GST%</b>",bold=True,align="CENTER",size=7), p("<b>CGST</b>",bold=True,align="RIGHT"), p("<b>SGST</b>",bold=True,align="RIGHT"), p("<b>Total</b>",bold=True,align="RIGHT")]
         col_widths = [40*mm,14*mm,10*mm,18*mm,18*mm,10*mm,16*mm,16*mm,18*mm]
 
     rows = [headers]
@@ -1119,7 +1119,7 @@ def generate_credit_note(original_invoice_type, order, reason="Refund/Return"):
         total_credit = pf + pf_cgst + pf_sgst + pf_igst + df + df_cgst + df_sgst + df_igst
 
         rows = [
-            [p("<b>Description</b>",bold=True),p("<b>Base</b>",bold=True,align="RIGHT"),p("<b>GST</b>",bold=True,align="RIGHT"),p("<b>Credit</b>",bold=True,align="RIGHT")],
+            [p("<b>Description</b>",bold=True),p("<b>Base</b>",bold=True,align="RIGHT"),p("<b>GST%</b>",bold=True,align="RIGHT"),p("<b>Credit</b>",bold=True,align="RIGHT")],
             [p("Platform fee credit"),p(f"Rs.{pf:.2f}",align="RIGHT"),p(f"Rs.{pf_cgst+pf_sgst+pf_igst:.2f}",align="RIGHT"),p(f"Rs.{pf+pf_cgst+pf_sgst+pf_igst:.2f}",align="RIGHT")],
             [p("Delivery fee credit"),p(f"Rs.{df:.2f}",align="RIGHT"),p(f"Rs.{df_cgst+df_sgst+df_igst:.2f}",align="RIGHT"),p(f"Rs.{df+df_cgst+df_sgst+df_igst:.2f}",align="RIGHT")],
         ]
