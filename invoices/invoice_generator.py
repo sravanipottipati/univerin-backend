@@ -826,7 +826,7 @@ def generate_seller_dashboard_invoice(order):
             rows.append([p(item.product.name), p(hsn,align="CENTER"), p(str(item.quantity),align="CENTER"), p(f"Rs.{pr:.2f}",align="RIGHT"), p(f"Rs.{taxable:.2f}",align="RIGHT"), p(f"{gst_pct:.0f}%",align="CENTER"), p(f"Rs.{cgst:.2f}",align="RIGHT"), p(f"Rs.{sgst:.2f}",align="RIGHT"), p(f"Rs.{total_line:.2f}",align="RIGHT")])
 
     it = Table(rows, colWidths=col_widths)
-    it.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),4)]))
+    it.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),3),("FONTSIZE",(0,0),(-1,-1),7)]))
     s.append(it)
     s.append(Spacer(1,3*mm))
 
