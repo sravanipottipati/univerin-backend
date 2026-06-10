@@ -787,7 +787,7 @@ def generate_seller_dashboard_invoice(order):
     bn = getattr(buyer, 'full_name', None) or buyer.phone_number
     pd = [
         [p("<b>Supplier (Seller)</b>", bold=True), p("<b>Recipient (Buyer)</b>", bold=True)],
-        [p(f"{vendor.shop_name}<br/>{vendor.address or vendor.town}<br/>State: {vendor_state} ({vendor_sc})<br/>GSTIN: {sg}<br/>PAN: {sp}<br/>FSSAI: {sf}"),
+        [p(f"{vendor.shop_name}<br/>{vendor.address or vendor.town}<br/>State: {vendor_state} ({vendor_sc})" + (f"<br/>GSTIN: {sg}" if has_gst else "") + (f"<br/>FSSAI: {sf}" if sf and sf != "N/A" else "") + (f"<br/>PAN: {sp}" if sp and sp != "N/A" else "")),
          p(f"{bn}<br/>Ph: {buyer.phone_number}<br/>{order.delivery_address or 'N/A'}<br/>State: {buyer_state} ({buyer_sc})")]
     ]
     pt = Table(pd, colWidths=[90*mm,90*mm])
@@ -801,7 +801,7 @@ def generate_seller_dashboard_invoice(order):
 
     if not has_gst:
         headers = [p("<b>Item</b>",bold=True), p("<b>Qty</b>",bold=True,align="CENTER"), p("<b>Rate</b>",bold=True,align="RIGHT"), p("<b>Total</b>",bold=True,align="RIGHT")]
-        col_widths = [90*mm,20*mm,30*mm,30*mm]
+        col_widths = [100*mm,20*mm,25*mm,25*mm]
     elif interstate:
         headers = [p("<b>Item</b>",bold=True), p("<b>HSN</b>",bold=True,align="CENTER"), p("<b>Qty</b>",bold=True,align="CENTER"), p("<b>Rate</b>",bold=True,align="RIGHT"), p("<b>Taxable</b>",bold=True,align="RIGHT"), p("<b>GST%</b>",bold=True,align="CENTER",size=7), p("<b>IGST</b>",bold=True,align="RIGHT"), p("<b>Total</b>",bold=True,align="RIGHT")]
         col_widths = [45*mm,16*mm,12*mm,22*mm,22*mm,12*mm,20*mm,22*mm]
@@ -841,8 +841,7 @@ def generate_seller_dashboard_invoice(order):
     invoice_total = subtotal + total_cgst + total_sgst + total_igst
     if not has_gst:
         td = [
-            [p("<b>Items Total</b>",bold=True), p(f"Rs.{subtotal:.2f}",align="RIGHT")],
-            [p("<b>Order Total</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{invoice_total:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")]
+            [p("<b>Order Total</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{subtotal:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")]
         ]
     else:
         td = [[p("<b>Taxable value</b>",bold=True), p(f"Rs.{subtotal:.2f}",align="RIGHT")]]
