@@ -756,8 +756,12 @@ def generate_seller_dashboard_invoice(order):
     interstate   = is_interstate(vendor_state, buyer_state)
     vendor_sc    = get_state_code(vendor_state)
     buyer_sc     = get_state_code(buyer_state)
-    sg           = getattr(vendor, "gstin", None) or "N/A"
+    sg           = getattr(vendor, "gstin", None) or ""
+    has_gst      = bool(sg and sg.strip())
+    sf           = getattr(vendor, "fssai_number", None) or "N/A"
     sp           = getattr(vendor, "pan", None) or "N/A"
+    doc_title    = "TAX INVOICE" if has_gst else "ORDER RECEIPT"
+    sg           = sg or "N/A"
     order_date   = order.created_at.strftime("%d %b %Y")
     from datetime import date as _date
     _today = _date.today()
@@ -769,7 +773,7 @@ def generate_seller_dashboard_invoice(order):
 
     # Header
     left  = p(f'<b><font color="#2563eb" size="16">{vendor.shop_name}</font></b>', size=16)
-    right = p(f'<b>TAX INVOICE</b><br/><font size="8" color="#6b7280">Invoice #: {inv_no}</font><br/><font size="8" color="#6b7280">Date: {order_date}</font><br/><font size="8" color="#6b7280">Order #: {order.order_number}</font>', size=10, align='RIGHT')
+    right = p(f'<b>{doc_title}</b><br/><font size="8" color="#6b7280">Invoice #: {inv_no}</font><br/><font size="8" color="#6b7280">Date: {order_date}</font><br/><font size="8" color="#6b7280">Order #: {order.order_number}</font>', size=10, align='RIGHT')
     ht = Table([[left, right]], colWidths=[90*mm, 90*mm])
     ht.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP"),("LINEBELOW",(0,0),(-1,0),0.5,colors.HexColor("#e5e7eb"))]))
     s.append(ht)
@@ -783,7 +787,7 @@ def generate_seller_dashboard_invoice(order):
     bn = getattr(buyer, 'full_name', None) or buyer.phone_number
     pd = [
         [p("<b>Supplier (Seller)</b>", bold=True), p("<b>Recipient (Buyer)</b>", bold=True)],
-        [p(f"{vendor.shop_name}<br/>{vendor.address or vendor.town}<br/>State: {vendor_state} ({vendor_sc})<br/>GSTIN: {sg}<br/>PAN: {sp}"),
+        [p(f"{vendor.shop_name}<br/>{vendor.address or vendor.town}<br/>State: {vendor_state} ({vendor_sc})<br/>GSTIN: {sg}<br/>PAN: {sp}<br/>FSSAI: {sf}"),
          p(f"{bn}<br/>Ph: {buyer.phone_number}<br/>{order.delivery_address or 'N/A'}<br/>State: {buyer_state} ({buyer_sc})")]
     ]
     pt = Table(pd, colWidths=[90*mm,90*mm])
@@ -795,7 +799,10 @@ def generate_seller_dashboard_invoice(order):
     s.append(p("<b>Goods supplied</b>", bold=True, size=9))
     s.append(Spacer(1,2*mm))
 
-    if interstate:
+    if not has_gst:
+        headers = [p("<b>Item</b>",bold=True), p("<b>Qty</b>",bold=True,align="CENTER"), p("<b>Rate</b>",bold=True,align="RIGHT"), p("<b>Total</b>",bold=True,align="RIGHT")]
+        col_widths = [90*mm,20*mm,30*mm,30*mm]
+    elif interstate:
         headers = [p("<b>Item</b>",bold=True), p("<b>HSN</b>",bold=True,align="CENTER"), p("<b>Qty</b>",bold=True,align="CENTER"), p("<b>Rate</b>",bold=True,align="RIGHT"), p("<b>Taxable</b>",bold=True,align="RIGHT"), p("<b>GST%</b>",bold=True,align="CENTER",size=7), p("<b>IGST</b>",bold=True,align="RIGHT"), p("<b>Total</b>",bold=True,align="RIGHT")]
         col_widths = [45*mm,16*mm,12*mm,22*mm,22*mm,12*mm,20*mm,22*mm]
     else:
@@ -832,13 +839,19 @@ def generate_seller_dashboard_invoice(order):
 
     # Tax summary
     invoice_total = subtotal + total_cgst + total_sgst + total_igst
-    td = [[p("<b>Taxable value</b>",bold=True), p(f"Rs.{subtotal:.2f}",align="RIGHT")]]
-    if interstate:
-        td.append([p(f"IGST"), p(f"Rs.{total_igst:.2f}",align="RIGHT")])
+    if not has_gst:
+        td = [
+            [p("<b>Items Total</b>",bold=True), p(f"Rs.{subtotal:.2f}",align="RIGHT")],
+            [p("<b>Order Total</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{invoice_total:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")]
+        ]
     else:
-        td.append([p(f"CGST"), p(f"Rs.{total_cgst:.2f}",align="RIGHT")])
-        td.append([p(f"SGST"), p(f"Rs.{total_sgst:.2f}",align="RIGHT")])
-    td.append([p("<b>Invoice Total</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{invoice_total:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")])
+        td = [[p("<b>Taxable value</b>",bold=True), p(f"Rs.{subtotal:.2f}",align="RIGHT")]]
+        if interstate:
+            td.append([p(f"IGST"), p(f"Rs.{total_igst:.2f}",align="RIGHT")])
+        else:
+            td.append([p(f"CGST"), p(f"Rs.{total_cgst:.2f}",align="RIGHT")])
+            td.append([p(f"SGST"), p(f"Rs.{total_sgst:.2f}",align="RIGHT")])
+        td.append([p("<b>Invoice Total</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{invoice_total:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")])
     tt = Table(td, colWidths=[140*mm,40*mm])
     tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),4)]))
     s.append(tt)
@@ -847,12 +860,23 @@ def generate_seller_dashboard_invoice(order):
     s.append(Spacer(1,4*mm))
     s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
     s.append(Spacer(1,2*mm))
-    for n in [
-        f"This is a tax invoice issued by {vendor.shop_name} for goods supplied.",
-        f"GSTIN of supplier: {sg} | State: {vendor_state} ({vendor_sc})",
-        "This is a computer-generated invoice and does not require a physical signature.",
-        "For queries: contact@univerin.in | Ph: 9000869619"
-    ]:
+    notes = []
+    if has_gst:
+        notes = [
+            f"This is a tax invoice issued by {vendor.shop_name} for goods supplied.",
+            f"GSTIN of supplier: {sg} | State: {vendor_state} ({vendor_sc})",
+            "This is a computer-generated invoice and does not require a physical signature.",
+            "For queries: contact@univerin.in | Ph: 9000869619"
+        ]
+    else:
+        notes = [
+            f"This is an order receipt issued by {vendor.shop_name} for goods supplied.",
+            f"FSSAI: {sf} | State: {vendor_state} ({vendor_sc})",
+            "This seller is not registered under GST. No tax invoice is applicable.",
+            "This is a computer-generated receipt and does not require a physical signature.",
+            "For queries: contact@univerin.in | Ph: 9000869619"
+        ]
+    for n in notes:
         s.append(p("• "+n, color=GRAY, size=7))
     s.append(Spacer(1,3*mm))
     s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
