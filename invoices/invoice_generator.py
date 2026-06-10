@@ -200,7 +200,7 @@ def generate_buyer_invoice(order):
         sec_a_summary.append([p("CGST"), p(f"Rs.{sec_a_cgst:.2f}",align="RIGHT")])
         sec_a_summary.append([p("SGST"), p(f"Rs.{sec_a_sgst:.2f}",align="RIGHT")])
     sec_a_summary.append([p("<b>Section A Total</b>",bold=True,color=BLUE), p(f"<b>Rs.{sec_a_total:.2f}</b>",bold=True,color=BLUE,align="RIGHT")])
-    sat = Table(sec_a_summary, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    sat = Table(sec_a_summary, colWidths=[140*mm,40*mm])
     sat.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),3)]))
     s.append(sat)
     s.append(Spacer(1,5*mm))
@@ -250,7 +250,7 @@ def generate_buyer_invoice(order):
     s.append(bt2)
 
     sec_b_summary = [[p("<b>Section B Total</b>",bold=True,color=GREEN), p(f"<b>Rs.{sec_b_total:.2f}</b>",bold=True,color=GREEN,align="RIGHT")]]
-    sbt2 = Table(sec_b_summary, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    sbt2 = Table(sec_b_summary, colWidths=[140*mm,40*mm])
     sbt2.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#f0fdf4")),("PADDING",(0,0),(-1,-1),3)]))
     s.append(sbt2)
     s.append(Spacer(1,5*mm))
@@ -264,7 +264,7 @@ def generate_buyer_invoice(order):
         [p("Section B — Platform charges total"), p(f"Rs.{sec_b_total:.2f}",align="RIGHT")],
         [p("<b>Grand total paid</b>",bold=True,size=11,color=DARK), p(f"<b>Rs.{gt:.2f}</b>",bold=True,size=11,align="RIGHT")],
     ]
-    tt = Table(td, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    tt = Table(td, colWidths=[140*mm,40*mm])
     tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1.5,DARK),("BACKGROUND",(0,-1),(-1,-1),LIGHT),("PADDING",(0,0),(-1,-1),5)]))
     s.append(tt)
     s.append(Spacer(1,2*mm))
@@ -372,7 +372,7 @@ def generate_commission_invoice(order):
         td.append([p("CGST @ 9% on commission"), p(f"Rs.{cgst:.2f}",align="RIGHT")])
         td.append([p("SGST @ 9% on commission"), p(f"Rs.{sgst:.2f}",align="RIGHT")])
     td.append([p("<b>Total commission payable</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{total:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")])
-    tt = Table(td, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    tt = Table(td, colWidths=[140*mm,40*mm])
     tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),4)]))
     s.append(tt)
     s.append(Spacer(1,2*mm))
@@ -545,7 +545,7 @@ def generate_settlement_statement(vendor, period_start, period_end):
         [p("Total deductions"), p(f"Rs.{t_ded:.2f}",align="RIGHT")],
         [p("<b>Net payout to seller</b>",bold=True,size=10,color=GREEN), p(f"<b>Rs.{net:.2f}</b>",bold=True,size=10,color=GREEN,align="RIGHT")],
     ]
-    st = Table(sd, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    st = Table(sd, colWidths=[140*mm,40*mm])
     st.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,GREEN),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#f0fdf4")),("PADDING",(0,0),(-1,-1),4)]))
     s.append(st)
     s.append(Spacer(1,4*mm))
@@ -688,7 +688,7 @@ def generate_tcs_certificate(vendor, quarter_start, quarter_end, quarter_name):
         sd.append([p("CGST TCS @ 0.25%"), p(f"Rs.{total_cgst_tcs:.2f}",align="RIGHT")])
         sd.append([p("SGST TCS @ 0.25%"), p(f"Rs.{total_sgst_tcs:.2f}",align="RIGHT")])
     sd.append([p("<b>Total TCS collected & remitted</b>",bold=True,color=GREEN), p(f"<b>Rs.{total_tcs:.2f}</b>",bold=True,color=GREEN,align="RIGHT")])
-    st = Table(sd, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    st = Table(sd, colWidths=[140*mm,40*mm])
     st.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,GREEN),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#f0fdf4")),("PADDING",(0,0),(-1,-1),4)]))
     s.append(st)
     s.append(Spacer(1,4*mm))
@@ -964,7 +964,7 @@ def generate_platform_invoice(order):
         [p("Delivery fee (incl. GST)"), p(f"Rs.{df_total:.2f}",align="RIGHT")],
         [p("<b>Total platform charges</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{total:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")],
     ]
-    tt = Table(td, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    tt = Table(td, colWidths=[140*mm,40*mm])
     tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),4)]))
     s.append(tt)
     s.append(Spacer(1,2*mm))
@@ -1141,7 +1141,7 @@ def generate_credit_note(original_invoice_type, order, reason="Refund/Return"):
 
     s.append(Spacer(1,3*mm))
     td = [[p("<b>Total credit amount</b>",bold=True,size=11,color=RED), p(f"<b>- Rs.{total_credit:.2f}</b>",bold=True,size=11,color=RED,align="RIGHT")]]
-    tt = Table(td, colWidths=[130*mm,40*mm], hAlign="RIGHT")
+    tt = Table(td, colWidths=[140*mm,40*mm])
     tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),1,RED),("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#fef2f2")),("PADDING",(0,0),(-1,-1),6)]))
     s.append(tt)
     s.append(Spacer(1,2*mm))
