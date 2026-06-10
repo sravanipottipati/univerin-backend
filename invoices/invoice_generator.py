@@ -221,7 +221,7 @@ def generate_buyer_invoice(order):
     # ══════════════════════════════════════════════════════════
     # SECTION B — TAX INVOICE FROM UNIVERIN (Platform)
     # ══════════════════════════════════════════════════════════
-    s.append(p("[ SECTION B — TAX INVOICE FROM UNIVERIN (Platform service) ]", bold=True, size=9, color=GREEN))
+    s.append(p("[ SECTION B — TAX INVOICE FROM UNIVERIN (Platform service) ]", bold=True, size=9, color=BLUE))
     s.append(Spacer(1,2*mm))
 
     sec_b_interstate = is_interstate(PLATFORM_STATE, buyer_state)
@@ -230,7 +230,7 @@ def generate_buyer_invoice(order):
         [p(f"Invoice #: {sec_b_no} | Date: {dt}"), p(f"Place of supply: {buyer_state} ({buyer_sc}) | Reverse charge: No",align="RIGHT")],
     ]
     sbit = Table(sec_b_info, colWidths=[90*mm,90*mm])
-    sbit.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#f0fdf4")),("PADDING",(0,0),(-1,-1),4),("BOX",(0,0),(-1,-1),0.5,GREEN)]))
+    sbit.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),4),("BOX",(0,0),(-1,-1),0.5,GREEN)]))
     s.append(sbit)
     s.append(Spacer(1,2*mm))
 
@@ -262,9 +262,9 @@ def generate_buyer_invoice(order):
     bt2.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),3),("FONTSIZE",(0,0),(-1,-1),7)]))
     s.append(bt2)
 
-    sec_b_summary = [[p("<b>Section B Total</b>",bold=True,color=GREEN), p(f"<b>Rs.{sec_b_total:.2f}</b>",bold=True,color=GREEN,align="RIGHT")]]
+    sec_b_summary = [[p("<b>Section B Total</b>",bold=True,color=BLUE), p(f"<b>Rs.{sec_b_total:.2f}</b>",bold=True,color=BLUE,align="RIGHT")]]
     sbt2 = Table(sec_b_summary, colWidths=[140*mm,40*mm])
-    sbt2.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#f0fdf4")),("PADDING",(0,0),(-1,-1),3)]))
+    sbt2.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),3)]))
     s.append(sbt2)
     s.append(Spacer(1,5*mm))
 
@@ -518,7 +518,7 @@ def generate_settlement_statement(vendor, period_start, period_end):
     sb_data = [[
         Table([[p("Gross order value",color=GRAY,size=7,align="CENTER")],[p(f"Rs.{gross:.2f}",bold=True,size=14,align="CENTER")]],colWidths=[55*mm]),
         Table([[p("Total deductions",color=GRAY,size=7,align="CENTER")],[p(f"Rs.{t_ded:.2f}",bold=True,size=14,align="CENTER")]],colWidths=[55*mm]),
-        Table([[p("Net payout to seller",color=GRAY,size=7,align="CENTER")],[p(f"Rs.{net:.2f}",bold=True,size=14,color=GREEN,align="CENTER")]],colWidths=[55*mm]),
+        Table([[p("Net payout to seller",color=GRAY,size=7,align="CENTER")],[p(f"Rs.{net:.2f}",bold=True,size=14,color=BLUE,align="CENTER")]],colWidths=[55*mm]),
     ]]
     sbt = Table(sb_data, colWidths=[60*mm,60*mm,60*mm])
     sbt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),8),("VALIGN",(0,0),(-1,-1),"MIDDLE")]))
@@ -548,7 +548,7 @@ def generate_settlement_statement(vendor, period_start, period_end):
         p(f"<b>Rs.{net:.2f}</b>",bold=True,align="RIGHT"),
     ])
     ot = Table(rows, colWidths=[32*mm,22*mm,25*mm,25*mm,25*mm,25*mm,26*mm])
-    ot.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#f0fdf4")),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),3),("FONTSIZE",(0,0),(-1,-1),7)]))
+    ot.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),3),("FONTSIZE",(0,0),(-1,-1),7)]))
     s.append(ot)
     s.append(Spacer(1,4*mm))
 
@@ -560,10 +560,10 @@ def generate_settlement_statement(vendor, period_start, period_end):
         [p("GST TCS deducted (0.5%)"), p(f"Rs.{t_gst_tcs:.2f}",align="RIGHT")],
         [p("TDS u/s 194-O deducted (1%)"), p(f"Rs.{t_tds:.2f}",align="RIGHT")],
         [p("Total deductions"), p(f"Rs.{t_ded:.2f}",align="RIGHT")],
-        [p("<b>Net payout to seller</b>",bold=True,size=10,color=GREEN), p(f"<b>Rs.{net:.2f}</b>",bold=True,size=10,color=GREEN,align="RIGHT")],
+        [p("<b>Net payout to seller</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{net:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")],
     ]
     st = Table(sd, colWidths=[140*mm,40*mm])
-    st.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,GREEN),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#f0fdf4")),("PADDING",(0,0),(-1,-1),4)]))
+    st.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),4)]))
     s.append(st)
     s.append(Spacer(1,4*mm))
     s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
@@ -670,7 +670,7 @@ def generate_tcs_certificate(vendor, quarter_start, quarter_end, quarter_name):
     sb_data = [[
         Table([[p("Total taxable value",color=GRAY,size=7,align="CENTER")],[p(f"Rs.{total_taxable:.2f}",bold=True,size=14,align="CENTER")]],colWidths=[55*mm]),
         Table([[p("TCS rate",color=GRAY,size=7,align="CENTER")],[p(tcs_rate_text,bold=True,size=9,align="CENTER")]],colWidths=[55*mm]),
-        Table([[p("Total TCS collected",color=GRAY,size=7,align="CENTER")],[p(f"Rs.{total_tcs:.2f}",bold=True,size=14,color=GREEN,align="CENTER")]],colWidths=[55*mm]),
+        Table([[p("Total TCS collected",color=GRAY,size=7,align="CENTER")],[p(f"Rs.{total_tcs:.2f}",bold=True,size=14,color=BLUE,align="CENTER")]],colWidths=[55*mm]),
     ]]
     sbt = Table(sb_data, colWidths=[60*mm,60*mm,60*mm])
     sbt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),8)]))
@@ -696,7 +696,7 @@ def generate_tcs_certificate(vendor, quarter_start, quarter_end, quarter_name):
     else:
         rows.append([p("<b>Total</b>",bold=True),p(""),p(f"<b>Rs.{total_taxable:.2f}</b>",bold=True,align="RIGHT"),p(""),p(f"<b>Rs.{total_cgst_tcs:.2f}</b>",bold=True,align="RIGHT"),p(f"<b>Rs.{total_sgst_tcs:.2f}</b>",bold=True,align="RIGHT"),p(f"<b>Rs.{total_tcs:.2f}</b>",bold=True,align="RIGHT")])
     ot = Table(rows, colWidths=cw)
-    ot.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#f0fdf4")),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),3),("FONTSIZE",(0,0),(-1,-1),7)]))
+    ot.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),3),("FONTSIZE",(0,0),(-1,-1),7)]))
     s.append(ot)
     s.append(Spacer(1,4*mm))
 
@@ -706,9 +706,9 @@ def generate_tcs_certificate(vendor, quarter_start, quarter_end, quarter_name):
     else:
         sd.append([p("CGST TCS @ 0.25%"), p(f"Rs.{total_cgst_tcs:.2f}",align="RIGHT")])
         sd.append([p("SGST TCS @ 0.25%"), p(f"Rs.{total_sgst_tcs:.2f}",align="RIGHT")])
-    sd.append([p("<b>Total TCS collected & remitted</b>",bold=True,color=GREEN), p(f"<b>Rs.{total_tcs:.2f}</b>",bold=True,color=GREEN,align="RIGHT")])
+    sd.append([p("<b>Total TCS collected & remitted</b>",bold=True,color=BLUE), p(f"<b>Rs.{total_tcs:.2f}</b>",bold=True,color=BLUE,align="RIGHT")])
     st = Table(sd, colWidths=[140*mm,40*mm])
-    st.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,GREEN),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#f0fdf4")),("PADDING",(0,0),(-1,-1),4)]))
+    st.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),4)]))
     s.append(st)
     s.append(Spacer(1,4*mm))
     s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
