@@ -855,7 +855,7 @@ def generate_seller_dashboard_invoice(order):
     tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),4)]))
     s.append(tt)
     s.append(Spacer(1,2*mm))
-    s.append(p(f"Amount in words: {amount_in_words(invoice_total)}", color=GRAY, size=7))
+    s.append(p(f"Amount in words: {amount_in_words(subtotal if not has_gst else invoice_total)}", color=GRAY, size=7))
     s.append(Spacer(1,4*mm))
     s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
     s.append(Spacer(1,2*mm))
