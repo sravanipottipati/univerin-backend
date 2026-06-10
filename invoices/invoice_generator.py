@@ -154,7 +154,7 @@ def generate_buyer_invoice(order):
 
     sec_a_interstate = is_interstate(vendor_state, buyer_state)
     sec_a_info = [
-        [p(f"Issued by: {vendor.shop_name}",bold=True), p(f"GSTIN: {sg}",align="RIGHT")],
+        [p(f"Issued by: {vendor.shop_name}",bold=True), p(f"GSTIN: {sg}" if has_gst else "",align="RIGHT")],
         [p(f"Invoice #: {sec_a_no} | Date: {dt}"), p(f"Place of supply: {buyer_state} ({buyer_sc}) | Reverse charge: No",align="RIGHT")],
     ]
     sit = Table(sec_a_info, colWidths=[90*mm,90*mm])
@@ -330,6 +330,8 @@ def generate_commission_invoice(order):
     vendor_state = getattr(vendor, "state", PLATFORM_STATE) or PLATFORM_STATE
     sg           = getattr(vendor, "gstin", None) or "N/A"
     vendor_sc    = get_state_code(vendor_state)
+    _cat_map = {'veg_fruits':'Veg & Fruits','groceries':'Groceries','restaurant':'Restaurant','bakery':'Bakery','fastfood':'Fast Food','meat':'Meat & Fish'}
+    cat_display  = _cat_map.get(vendor.category or '', vendor.category or 'N/A')
     platform_sc  = get_state_code(PLATFORM_STATE)
     interstate   = is_interstate(PLATFORM_STATE, vendor_state)
     order_date   = order.created_at.strftime("%d %b %Y")
@@ -361,7 +363,7 @@ def generate_commission_invoice(order):
     pd = [
         [p("<b>From (Univerin)</b>", bold=True), p("<b>To (Seller)</b>", bold=True)],
         [p(f"Univerin Private Limited<br/>4/11, Sankarapuram, Govindampalli,<br/>Obulavaripalle - 516105, AP<br/>State: {PLATFORM_STATE} ({platform_sc})<br/>GSTIN: {PLATFORM_GSTIN}"),
-         p(f"{vendor.shop_name}<br/>State: {vendor_state} ({vendor_sc})<br/>GSTIN: {sg}<br/>Category: {vendor.category or 'N/A'}")]
+         p(f"{vendor.shop_name}<br/>State: {vendor_state} ({vendor_sc})<br/>GSTIN: {sg}<br/>Category: {cat_display}")]
     ]
     pt = Table(pd, colWidths=[90*mm,90*mm])
     pt.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("VALIGN",(0,0),(-1,-1),"TOP"),("PADDING",(0,0),(-1,-1),5)]))
@@ -883,9 +885,10 @@ def generate_seller_dashboard_invoice(order):
             "For queries: contact@univerin.in | Ph: 9000869619"
         ]
     else:
+        fssai_line = f"FSSAI: {sf} | State: {vendor_state} ({vendor_sc})" if sf and sf != "N/A" else f"State: {vendor_state} ({vendor_sc})"
         notes = [
             f"This is an order receipt issued by {vendor.shop_name} for goods supplied.",
-            f"FSSAI: {sf} | State: {vendor_state} ({vendor_sc})",
+            fssai_line,
             "This seller is not registered under GST. No tax invoice is applicable.",
             "This is a computer-generated receipt and does not require a physical signature.",
             "For queries: contact@univerin.in | Ph: 9000869619"
