@@ -98,7 +98,10 @@ def generate_buyer_invoice(order):
     buyer        = order.buyer
     vendor       = order.vendor
     bn           = getattr(buyer, 'full_name', None) or buyer.phone_number
-    sg           = getattr(vendor, 'gstin', None) or "N/A"
+    sg           = getattr(vendor, 'gstin', None) or ""
+    has_gst      = bool(sg and sg.strip())
+    sf           = getattr(vendor, 'fssai_number', None) or "N/A"
+    sg           = sg or "N/A"
     vendor_state = getattr(vendor, 'state', PLATFORM_STATE) or PLATFORM_STATE
     buyer_state  = PLATFORM_STATE
     try:
@@ -145,7 +148,8 @@ def generate_buyer_invoice(order):
     # ══════════════════════════════════════════════════════════
     # SECTION A — TAX INVOICE FROM SELLER
     # ══════════════════════════════════════════════════════════
-    s.append(p("[ SECTION A — TAX INVOICE FROM SELLER ]", bold=True, size=9, color=BLUE))
+    sec_a_title = "[ SECTION A — TAX INVOICE FROM SELLER ]" if has_gst else "[ SECTION A — ORDER RECEIPT FROM SELLER ]"
+    s.append(p(sec_a_title, bold=True, size=9, color=BLUE))
     s.append(Spacer(1,2*mm))
 
     sec_a_interstate = is_interstate(vendor_state, buyer_state)
@@ -159,7 +163,10 @@ def generate_buyer_invoice(order):
     s.append(Spacer(1,2*mm))
 
     # Seller items table
-    if sec_a_interstate:
+    if not has_gst:
+        hdr = [p("<b>Item</b>",bold=True),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
+        cw = [100*mm,20*mm,25*mm,25*mm]
+    elif sec_a_interstate:
         hdr = [p("<b>Item</b>",bold=True),p("<b>HSN</b>",bold=True,align="CENTER"),p("<b>Qty</b>",bold=True,align="CENTER"),p("<b>Rate</b>",bold=True,align="RIGHT"),p("<b>Taxable</b>",bold=True,align="RIGHT"),p("<b>GST%</b>",bold=True,align="CENTER",size=7),p("<b>IGST</b>",bold=True,align="RIGHT"),p("<b>Total</b>",bold=True,align="RIGHT")]
         cw = [45*mm,16*mm,12*mm,22*mm,22*mm,12*mm,20*mm,22*mm]
     else:
@@ -183,7 +190,9 @@ def generate_buyer_invoice(order):
         sec_a_cgst    += cgst
         sec_a_sgst    += sgst
         sec_a_igst    += igst
-        if sec_a_interstate:
+        if not has_gst:
+            rows.append([p(item.product.name),p(str(item.quantity),align="CENTER"),p(f"Rs.{pr:.2f}",align="RIGHT"),p(f"Rs.{taxable:.2f}",align="RIGHT")])
+        elif sec_a_interstate:
             rows.append([p(item.product.name),p(hsn,align="CENTER"),p(str(item.quantity),align="CENTER"),p(f"Rs.{pr:.2f}",align="RIGHT"),p(f"Rs.{taxable:.2f}",align="RIGHT"),p(f"{gst_pct:.0f}%",align="CENTER"),p(f"Rs.{igst:.2f}",align="RIGHT"),p(f"Rs.{total_line:.2f}",align="RIGHT")])
         else:
             rows.append([p(item.product.name),p(hsn,align="CENTER"),p(str(item.quantity),align="CENTER"),p(f"Rs.{pr:.2f}",align="RIGHT"),p(f"Rs.{taxable:.2f}",align="RIGHT"),p(f"{gst_pct:.0f}%",align="CENTER"),p(f"Rs.{cgst:.2f}",align="RIGHT"),p(f"Rs.{sgst:.2f}",align="RIGHT"),p(f"Rs.{total_line:.2f}",align="RIGHT")])
@@ -193,13 +202,17 @@ def generate_buyer_invoice(order):
     s.append(it)
 
     sec_a_total = sec_a_taxable + sec_a_cgst + sec_a_sgst + sec_a_igst
-    sec_a_summary = [[p("Taxable"), p(f"Rs.{sec_a_taxable:.2f}",align="RIGHT")]]
-    if sec_a_interstate:
-        sec_a_summary.append([p("IGST"), p(f"Rs.{sec_a_igst:.2f}",align="RIGHT")])
+    if not has_gst:
+        sec_a_total = sec_a_taxable
+        sec_a_summary = [[p("<b>Section A Total</b>",bold=True,color=BLUE), p(f"<b>Rs.{sec_a_total:.2f}</b>",bold=True,color=BLUE,align="RIGHT")]]
     else:
-        sec_a_summary.append([p("CGST"), p(f"Rs.{sec_a_cgst:.2f}",align="RIGHT")])
-        sec_a_summary.append([p("SGST"), p(f"Rs.{sec_a_sgst:.2f}",align="RIGHT")])
-    sec_a_summary.append([p("<b>Section A Total</b>",bold=True,color=BLUE), p(f"<b>Rs.{sec_a_total:.2f}</b>",bold=True,color=BLUE,align="RIGHT")])
+        sec_a_summary = [[p("Taxable"), p(f"Rs.{sec_a_taxable:.2f}",align="RIGHT")]]
+        if sec_a_interstate:
+            sec_a_summary.append([p("IGST"), p(f"Rs.{sec_a_igst:.2f}",align="RIGHT")])
+        else:
+            sec_a_summary.append([p("CGST"), p(f"Rs.{sec_a_cgst:.2f}",align="RIGHT")])
+            sec_a_summary.append([p("SGST"), p(f"Rs.{sec_a_sgst:.2f}",align="RIGHT")])
+        sec_a_summary.append([p("<b>Section A Total</b>",bold=True,color=BLUE), p(f"<b>Rs.{sec_a_total:.2f}</b>",bold=True,color=BLUE,align="RIGHT")])
     sat = Table(sec_a_summary, colWidths=[140*mm,40*mm])
     sat.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),3)]))
     s.append(sat)
