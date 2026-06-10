@@ -456,6 +456,8 @@ def generate_settlement_statement(vendor, period_start, period_end):
     vendor_state = getattr(vendor, "state", PLATFORM_STATE) or PLATFORM_STATE
     sg = getattr(vendor, "gstin", None) or "N/A"
     sp = getattr(vendor, "pan",   None) or "N/A"
+    _cat_map = {'veg_fruits':'Veg & Fruits','groceries':'Groceries','restaurant':'Restaurant','bakery':'Bakery','fastfood':'Fast Food','meat':'Meat & Fish'}
+    cat_display = _cat_map.get(vendor.category or '', vendor.category or 'N/A')
     sb = getattr(vendor, "bank_name",           "State Bank of India") or "State Bank of India"
     sa = getattr(vendor, "bank_account_number", "XXXX XXXX 0000")      or "XXXX XXXX 0000"
     si = getattr(vendor, "bank_ifsc_code",      "SBIN0000000")         or "SBIN0000000"
@@ -474,7 +476,7 @@ def generate_settlement_statement(vendor, period_start, period_end):
     pd = [
         [p("<b>Settled by (Univerin)</b>",bold=True), p("<b>Settled to (Seller)</b>",bold=True)],
         [p(f"Univerin Private Limited<br/>4/11, Sankarapuram, Govindampalli,<br/>Obulavaripalle - 516105, AP<br/>GSTIN: {PLATFORM_GSTIN}<br/>contact@univerin.in | Ph: 9000869619"),
-         p(f"{vendor.shop_name}<br/>GSTIN: {sg}<br/>PAN: {sp}<br/>Category: {vendor.category or 'N/A'}<br/>Bank: {sb} | A/C: {sa}<br/>IFSC: {si}")]
+         p(f"{vendor.shop_name}<br/>GSTIN: {sg}<br/>PAN: {sp}<br/>Category: {cat_display}<br/>Bank: {sb} | A/C: {sa}<br/>IFSC: {si}")]
     ]
     pt = Table(pd, colWidths=[90*mm,90*mm])
     pt.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("VALIGN",(0,0),(-1,-1),"TOP"),("PADDING",(0,0),(-1,-1),5)]))
@@ -623,6 +625,8 @@ def generate_tcs_certificate(vendor, quarter_start, quarter_end, quarter_name):
     vendor_state = getattr(vendor, "state", PLATFORM_STATE) or PLATFORM_STATE
     sg = getattr(vendor, "gstin", None) or "N/A"
     sp = getattr(vendor, "pan",   None) or "N/A"
+    _cat_map = {'veg_fruits':'Veg & Fruits','groceries':'Groceries','restaurant':'Restaurant','bakery':'Bakery','fastfood':'Fast Food','meat':'Meat & Fish'}
+    cat_display = _cat_map.get(vendor.category or '', vendor.category or 'N/A')
     interstate = is_interstate(vendor_state, PLATFORM_STATE)
 
     left  = p('<b><font color="#2563eb" size="22">Univerin</font></b>', size=22)
@@ -637,7 +641,7 @@ def generate_tcs_certificate(vendor, quarter_start, quarter_end, quarter_name):
     pd = [
         [p("<b>Collector (E-Commerce Operator)</b>",bold=True), p("<b>Collectee (Seller)</b>",bold=True)],
         [p(f"Univerin Private Limited<br/>4/11, Sankarapuram, Govindampalli,<br/>Obulavaripalle - 516105, AP<br/>GSTIN: {PLATFORM_GSTIN}<br/>PAN: AADCU8846J<br/>TAN: HYDV12345A<br/>contact@univerin.in | Ph: 9000869619"),
-         p(f"{vendor.shop_name}<br/>GSTIN: {sg}<br/>PAN: {sp}<br/>Category: {vendor.category or 'N/A'}")]
+         p(f"{vendor.shop_name}<br/>GSTIN: {sg}<br/>PAN: {sp}<br/>Category: {cat_display2}")]
     ]
     pt = Table(pd, colWidths=[90*mm,90*mm])
     pt.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("VALIGN",(0,0),(-1,-1),"TOP"),("PADDING",(0,0),(-1,-1),5)]))
@@ -897,7 +901,8 @@ def generate_seller_dashboard_invoice(order):
         s.append(p("• "+n, color=GRAY, size=7))
     s.append(Spacer(1,3*mm))
     s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
-    s.append(p(f"{vendor.shop_name} | GSTIN: {sg} | Powered by Univerin", color=GRAY, align="CENTER", size=7))
+    gstin_footer = f" | GSTIN: {sg}" if has_gst else ""
+    s.append(p(f"{vendor.shop_name}{gstin_footer} | Powered by Univerin", color=GRAY, align="CENTER", size=7))
     s.append(p("Powering your local business.", bold=True, color=BLUE, align="CENTER"))
     doc.build(s)
     buf.seek(0)
