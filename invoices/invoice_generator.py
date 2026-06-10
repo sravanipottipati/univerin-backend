@@ -827,7 +827,9 @@ def generate_seller_dashboard_invoice(order):
         total_sgst += sgst
         total_igst += igst
 
-        if interstate:
+        if not has_gst:
+            rows.append([p(item.product.name), p(str(item.quantity),align="CENTER"), p(f"Rs.{pr:.2f}",align="RIGHT"), p(f"Rs.{taxable:.2f}",align="RIGHT")])
+        elif interstate:
             rows.append([p(item.product.name), p(hsn,align="CENTER"), p(str(item.quantity),align="CENTER"), p(f"Rs.{pr:.2f}",align="RIGHT"), p(f"Rs.{taxable:.2f}",align="RIGHT"), p(f"{gst_pct:.0f}%",align="CENTER"), p(f"Rs.{igst:.2f}",align="RIGHT"), p(f"Rs.{total_line:.2f}",align="RIGHT")])
         else:
             rows.append([p(item.product.name), p(hsn,align="CENTER"), p(str(item.quantity),align="CENTER"), p(f"Rs.{pr:.2f}",align="RIGHT"), p(f"Rs.{taxable:.2f}",align="RIGHT"), p(f"{gst_pct:.0f}%",align="CENTER"), p(f"Rs.{cgst:.2f}",align="RIGHT"), p(f"Rs.{sgst:.2f}",align="RIGHT"), p(f"Rs.{total_line:.2f}",align="RIGHT")])
