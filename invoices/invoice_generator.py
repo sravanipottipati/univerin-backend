@@ -595,14 +595,18 @@ def generate_settlement_statement(vendor, period_start, period_end):
     s.append(st)
     s.append(Spacer(1,4*mm))
     s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
-    for n in [
+    settlement_notes = [
         f"Commission is charged per order based on seller category. Groceries: 6%, Vegetables: 3%, Restaurant/Bakery/FastFood: 20%.",
         "GST on commission is 18% (CGST 9% + SGST 9%) charged by Univerin on the commission amount.",
-        "GST TCS @ 0.5% (CGST 0.25% + SGST 0.25%) is deducted as per Section 52 of CGST Act, 2017 (w.e.f. 10-Jul-2024).",
+    ]
+    if has_gst:
+        settlement_notes.append("GST TCS @ 0.5% (CGST 0.25% + SGST 0.25%) is deducted as per Section 52 of CGST Act, 2017 (w.e.f. 10-Jul-2024).")
+    settlement_notes += [
         "TDS u/s 194-O @ 1% is deducted as per Income Tax Act on gross sale value.",
         "This is a computer-generated statement and does not require a physical signature.",
         "For disputes: contact@univerin.in | Ph: 9000869619"
-    ]:
+    ]
+    for n in settlement_notes:
         s.append(p("• "+n, color=GRAY, size=7))
     s.append(Spacer(1,3*mm))
     s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
