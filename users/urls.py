@@ -1,7 +1,8 @@
 from django.urls import path
 from .views import (RegisterView, LoginView, ProfileView,
                     AddressListView, AddressDetailView, SetDefaultAddressView,
-                    UploadProfilePhotoView, ForgotPasswordView, ResetPasswordView)
+                    UploadProfilePhotoView, ForgotPasswordView, ResetPasswordView,
+                    delete_account_request)
 from rest_framework_simplejwt.views import TokenRefreshView
 from .admin_views import admin_stats
 
@@ -20,4 +21,5 @@ urlpatterns = [
     path('addresses/<uuid:address_id>/',         AddressDetailView.as_view(),      name='address-detail'),
     path('addresses/<uuid:address_id>/default/', SetDefaultAddressView.as_view(),  name='address-default'),
     path('admin/stats/',                       admin_stats,                          name='admin-stats'),
+    path('delete-account-request/',              delete_account_request,          name='delete-account-request'),
 ]

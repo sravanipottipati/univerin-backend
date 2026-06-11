@@ -333,3 +333,32 @@ class ResetPasswordView(APIView):
         return Response({
             'message': 'Password reset successful. Please login with your new password.'
         }, status=status.HTTP_200_OK)
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def delete_account_request(request):
+    """Send account deletion request email to admin"""
+    user = request.user
+    try:
+        from django.core.mail import send_mail
+        send_mail(
+            subject=f'Account Deletion Request - {user.phone_number}',
+            message=f"""
+Account Deletion Request received:
+
+User Phone: {user.phone_number}
+User ID: {user.id}
+Request Time: {__import__('datetime').datetime.now().strftime('%d %b %Y %H:%M')}
+
+Please delete this account within 24 hours.
+            """,
+            from_email='contact@univerin.in',
+            recipient_list=['contact@univerin.in'],
+            fail_silently=True,
+        )
+        return Response({'message': 'Deletion request submitted successfully.'}, status=200)
+    except Exception as e:
+        return Response({'message': 'Request submitted. We will process it within 24 hours.'}, status=200)
