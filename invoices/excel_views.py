@@ -478,3 +478,106 @@ def commission_invoices_zip(request):
     response = HttpResponse(zip_buf, content_type='application/zip')
     response['Content-Disposition'] = f'attachment; filename="commission_invoices_{month_name}.zip"'
     return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def tcs_excel(request):
+    """Admin downloads TCS Excel per month"""
+    month = int(request.GET.get("month", datetime.now().month))
+    year  = int(request.GET.get("year", datetime.now().year))
+    month_name = datetime(year, month, 1).strftime("%B %Y")
+    from .tax_utils import calc_tcs, PLATFORM_STATE
+    from decimal import Decimal
+    orders = Order.objects.filter(
+        status="delivered",
+        created_at__month=month,
+        created_at__year=year,
+    ).select_related("vendor").order_by("created_at")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "TCS Register"
+    start_row = add_univerin_header(ws, f"GST TCS Register — {month_name}", "Section 52 CGST Act | Rate: 0.5%")
+    headers = ["Order ID", "Date", "Vendor", "GSTIN", "Order Value", "CGST TCS", "SGST TCS", "Total TCS"]
+    widths  = [20, 15, 25, 20, 15, 12, 12, 12]
+    for col, (h, w) in enumerate(zip(headers, widths), 1):
+        cell = ws.cell(row=start_row, column=col, value=h)
+        style_header(cell)
+        ws.column_dimensions[get_column_letter(col)].width = w
+    t_ov = Decimal("0"); t_tcs = Decimal("0")
+    for i, order in enumerate(orders):
+        vendor = order.vendor
+        gstin = getattr(vendor, "gstin", "") or ""
+        if not gstin.strip():
+            continue
+        row = start_row + 1 + i
+        ov = Decimal(str(order.subtotal or 0))
+        vendor_state = getattr(vendor, "state", PLATFORM_STATE) or PLATFORM_STATE
+        cgst_tcs, sgst_tcs, igst_tcs = calc_tcs(ov, vendor_state, PLATFORM_STATE)
+        tcs_total = cgst_tcs + sgst_tcs + igst_tcs
+        t_ov += ov; t_tcs += tcs_total
+        fill = LIGHT_FILL if i % 2 == 0 else PatternFill("solid", fgColor="FFFFFF")
+        row_data = [str(order.id)[:12].upper(), order.created_at.strftime("%d %b %Y"), vendor.shop_name, gstin, f"Rs.{ov:.2f}", f"Rs.{cgst_tcs:.2f}", f"Rs.{sgst_tcs:.2f}", f"Rs.{tcs_total:.2f}"]
+        for col, val in enumerate(row_data, 1):
+            cell = ws.cell(row=row, column=col, value=val)
+            cell.fill = fill
+            style_cell(cell)
+    total_row = start_row + 1 + orders.count()
+    ws.cell(row=total_row, column=1, value="TOTAL").font = Font(bold=True)
+    ws.cell(row=total_row, column=5, value=f"Rs.{t_ov:.2f}").font = Font(bold=True)
+    ws.cell(row=total_row, column=8, value=f"Rs.{t_tcs:.2f}").font = Font(bold=True)
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    response = HttpResponse(buf.read(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = f"attachment; filename=univerin_tcs_{month}_{year}.xlsx"
+    return response
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def tds_excel(request):
+    """Admin downloads TDS Excel per month"""
+    month = int(request.GET.get("month", datetime.now().month))
+    year  = int(request.GET.get("year", datetime.now().year))
+    month_name = datetime(year, month, 1).strftime("%B %Y")
+    from .tax_utils import calc_tds_194o
+    from decimal import Decimal
+    orders = Order.objects.filter(
+        status="delivered",
+        created_at__month=month,
+        created_at__year=year,
+    ).select_related("vendor").order_by("created_at")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "TDS Register"
+    start_row = add_univerin_header(ws, f"TDS u/s 194-O Register — {month_name}", "Income Tax Act | Rate: 1%")
+    headers = ["Order ID", "Date", "Vendor", "PAN", "Order Value", "TDS 1%"]
+    widths  = [20, 15, 25, 15, 15, 12]
+    for col, (h, w) in enumerate(zip(headers, widths), 1):
+        cell = ws.cell(row=start_row, column=col, value=h)
+        style_header(cell)
+        ws.column_dimensions[get_column_letter(col)].width = w
+    t_ov = Decimal("0"); t_tds = Decimal("0")
+    for i, order in enumerate(orders):
+        row = start_row + 1 + i
+        ov = Decimal(str(order.subtotal or 0))
+        tds = calc_tds_194o(ov)
+        t_ov += ov; t_tds += tds
+        fill = LIGHT_FILL if i % 2 == 0 else PatternFill("solid", fgColor="FFFFFF")
+        pan = getattr(order.vendor, "pan", "N/A") or "N/A"
+        row_data = [str(order.id)[:12].upper(), order.created_at.strftime("%d %b %Y"), order.vendor.shop_name, pan, f"Rs.{ov:.2f}", f"Rs.{tds:.2f}"]
+        for col, val in enumerate(row_data, 1):
+            cell = ws.cell(row=row, column=col, value=val)
+            cell.fill = fill
+            style_cell(cell)
+    total_row = start_row + 1 + orders.count()
+    ws.cell(row=total_row, column=1, value="TOTAL").font = Font(bold=True)
+    ws.cell(row=total_row, column=5, value=f"Rs.{t_ov:.2f}").font = Font(bold=True)
+    ws.cell(row=total_row, column=6, value=f"Rs.{t_tds:.2f}").font = Font(bold=True)
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    response = HttpResponse(buf.read(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = f"attachment; filename=univerin_tds_{month}_{year}.xlsx"
+    return response
