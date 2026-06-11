@@ -75,6 +75,8 @@ def tcs_certificate(request):
         vendor = request.user.vendor
     except Exception:
         return Response({'error': 'Vendor not found'}, status=404)
+    if not vendor.gstin or not vendor.gstin.strip():
+        return Response({'error': 'TCS certificate is only applicable for GST registered sellers.'}, status=400)
     today = date.today()
     q = (today.month - 1) // 3 + 1
     quarter_starts = {1: date(today.year,1,1), 2: date(today.year,4,1), 3: date(today.year,7,1), 4: date(today.year,10,1)}
