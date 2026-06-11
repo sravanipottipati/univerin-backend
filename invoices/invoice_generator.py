@@ -454,7 +454,9 @@ def generate_settlement_statement(vendor, period_start, period_end):
     pay_date  = (period_end + timedelta(days=3)).strftime("%d %b %Y")
 
     vendor_state = getattr(vendor, "state", PLATFORM_STATE) or PLATFORM_STATE
-    sg = getattr(vendor, "gstin", None) or "N/A"
+    sg = getattr(vendor, "gstin", None) or ""
+    has_gst = bool(sg and sg.strip())
+    sg = sg or "N/A"
     sp = getattr(vendor, "pan",   None) or "N/A"
     _cat_map = {'veg_fruits':'Veg & Fruits','groceries':'Groceries','restaurant':'Restaurant','bakery':'Bakery','fastfood':'Fast Food','meat':'Meat & Fish'}
     cat_display = _cat_map.get(vendor.category or '', vendor.category or 'N/A')
@@ -623,7 +625,9 @@ def generate_tcs_certificate(vendor, quarter_start, quarter_end, quarter_name):
     fy       = f"{str(today_d.year)[2:]}{str(today_d.year+1)[2:]}" if today_d.month >= 4 else f"{str(today_d.year-1)[2:]}{str(today_d.year)[2:]}"
     cert_no  = InvoiceSequence.next_number(f"UNV-TCS-{quarter_name}", fy)
     vendor_state = getattr(vendor, "state", PLATFORM_STATE) or PLATFORM_STATE
-    sg = getattr(vendor, "gstin", None) or "N/A"
+    sg = getattr(vendor, "gstin", None) or ""
+    has_gst = bool(sg and sg.strip())
+    sg = sg or "N/A"
     sp = getattr(vendor, "pan",   None) or "N/A"
     _cat_map = {'veg_fruits':'Veg & Fruits','groceries':'Groceries','restaurant':'Restaurant','bakery':'Bakery','fastfood':'Fast Food','meat':'Meat & Fish'}
     cat_display = _cat_map.get(vendor.category or '', vendor.category or 'N/A')
