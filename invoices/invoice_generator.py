@@ -533,26 +533,49 @@ def generate_settlement_statement(vendor, period_start, period_end):
     # Order breakdown
     s.append(p("<b>Order-wise breakdown</b>",bold=True,size=9))
     s.append(Spacer(1,2*mm))
-    rows = [[p("<b>Order ID</b>",bold=True),p("<b>Date</b>",bold=True),p("<b>Order value</b>",bold=True,align="RIGHT"),p("<b>Commission</b>",bold=True,align="RIGHT"),p("<b>GST TCS 0.5%</b>",bold=True,align="RIGHT"),p("<b>TDS 194-O 1%</b>",bold=True,align="RIGHT"),p("<b>Net payout</b>",bold=True,align="RIGHT")]]
+    if has_gst:
+        rows = [[p("<b>Order ID</b>",bold=True),p("<b>Date</b>",bold=True),p("<b>Order value</b>",bold=True,align="RIGHT"),p("<b>Commission</b>",bold=True,align="RIGHT"),p("<b>GST TCS 0.5%</b>",bold=True,align="RIGHT"),p("<b>TDS 194-O 1%</b>",bold=True,align="RIGHT"),p("<b>Net payout</b>",bold=True,align="RIGHT")]]
+    else:
+        rows = [[p("<b>Order ID</b>",bold=True),p("<b>Date</b>",bold=True),p("<b>Order value</b>",bold=True,align="RIGHT"),p("<b>Commission</b>",bold=True,align="RIGHT"),p("<b>TDS 194-O 1%</b>",bold=True,align="RIGHT"),p("<b>Net payout</b>",bold=True,align="RIGHT")]]
     for o, ov, comm_base, comm_gst, gst_tcs, tds, ded, net_o in order_rows:
+        if has_gst:
+            rows.append([
+                p(str(o.id)[:12].upper()),
+                p(o.created_at.strftime("%d %b %Y"),align="CENTER"),
+                p(f"Rs.{ov:.2f}",align="RIGHT"),
+                p(f"Rs.{comm_base:.2f}",align="RIGHT"),
+                p(f"Rs.{gst_tcs:.2f}",align="RIGHT"),
+                p(f"Rs.{tds:.2f}",align="RIGHT"),
+                p(f"Rs.{net_o:.2f}",align="RIGHT"),
+            ])
+        else:
+            rows.append([
+                p(str(o.id)[:12].upper()),
+                p(o.created_at.strftime("%d %b %Y"),align="CENTER"),
+                p(f"Rs.{ov:.2f}",align="RIGHT"),
+                p(f"Rs.{comm_base:.2f}",align="RIGHT"),
+                p(f"Rs.{tds:.2f}",align="RIGHT"),
+                p(f"Rs.{net_o:.2f}",align="RIGHT"),
+            ])
+    if has_gst:
         rows.append([
-            p(str(o.id)[:12].upper()),
-            p(o.created_at.strftime("%d %b %Y"),align="CENTER"),
-            p(f"Rs.{ov:.2f}",align="RIGHT"),
-            p(f"Rs.{comm_base:.2f}",align="RIGHT"),
-            p(f"Rs.{gst_tcs:.2f}",align="RIGHT"),
-            p(f"Rs.{tds:.2f}",align="RIGHT"),
-            p(f"Rs.{net_o:.2f}",align="RIGHT"),
+            p("<b>Total</b>",bold=True),p(""),
+            p(f"<b>Rs.{gross:.2f}</b>",bold=True,align="RIGHT"),
+            p(f"<b>Rs.{t_comm:.2f}</b>",bold=True,align="RIGHT"),
+            p(f"<b>Rs.{t_gst_tcs:.2f}</b>",bold=True,align="RIGHT"),
+            p(f"<b>Rs.{t_tds:.2f}</b>",bold=True,align="RIGHT"),
+            p(f"<b>Rs.{net:.2f}</b>",bold=True,align="RIGHT"),
         ])
-    rows.append([
-        p("<b>Total</b>",bold=True),p(""),
-        p(f"<b>Rs.{gross:.2f}</b>",bold=True,align="RIGHT"),
-        p(f"<b>Rs.{t_comm:.2f}</b>",bold=True,align="RIGHT"),
-        p(f"<b>Rs.{t_gst_tcs:.2f}</b>",bold=True,align="RIGHT"),
-        p(f"<b>Rs.{t_tds:.2f}</b>",bold=True,align="RIGHT"),
-        p(f"<b>Rs.{net:.2f}</b>",bold=True,align="RIGHT"),
-    ])
-    ot = Table(rows, colWidths=[32*mm,22*mm,25*mm,25*mm,25*mm,25*mm,26*mm])
+        ot = Table(rows, colWidths=[32*mm,22*mm,25*mm,25*mm,25*mm,25*mm,26*mm])
+    else:
+        rows.append([
+            p("<b>Total</b>",bold=True),p(""),
+            p(f"<b>Rs.{gross:.2f}</b>",bold=True,align="RIGHT"),
+            p(f"<b>Rs.{t_comm:.2f}</b>",bold=True,align="RIGHT"),
+            p(f"<b>Rs.{t_tds:.2f}</b>",bold=True,align="RIGHT"),
+            p(f"<b>Rs.{net:.2f}</b>",bold=True,align="RIGHT"),
+        ])
+        ot = Table(rows, colWidths=[35*mm,25*mm,30*mm,30*mm,30*mm,30*mm])
     ot.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),LIGHT),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("INNERGRID",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("PADDING",(0,0),(-1,-1),3),("FONTSIZE",(0,0),(-1,-1),7)]))
     s.append(ot)
     s.append(Spacer(1,4*mm))
@@ -560,9 +583,9 @@ def generate_settlement_statement(vendor, period_start, period_end):
     # Summary breakdown
     sd = [
         [p("Gross order value (products excl. GST)"), p(f"Rs.{gross:.2f}",align="RIGHT")],
-        [p(f"Commission charged ({vendor.category or ''})"), p(f"Rs.{t_comm:.2f}",align="RIGHT")],
+        [p(f"Commission charged ({cat_display})"), p(f"Rs.{t_comm:.2f}",align="RIGHT")],
         [p("GST on commission (18%)"), p(f"Rs.{t_comm_gst:.2f}",align="RIGHT")],
-        [p("GST TCS deducted (0.5%)"), p(f"Rs.{t_gst_tcs:.2f}",align="RIGHT")],
+        *([[p("GST TCS deducted (0.5%)"), p(f"Rs.{t_gst_tcs:.2f}",align="RIGHT")]] if has_gst else []),
         [p("TDS u/s 194-O deducted (1%)"), p(f"Rs.{t_tds:.2f}",align="RIGHT")],
         [p("Total deductions"), p(f"Rs.{t_ded:.2f}",align="RIGHT")],
         [p("<b>Net payout to seller</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{net:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")],
