@@ -499,8 +499,11 @@ def generate_settlement_statement(vendor, period_start, period_end):
         comm_cgst, comm_sgst, comm_igst = calc_gst(comm_base, 18, PLATFORM_STATE, vendor_state)
         comm_gst  = comm_cgst + comm_sgst + comm_igst
         comm_total = comm_base + comm_gst
-        cgst_tcs, sgst_tcs, igst_tcs = calc_tcs(ov, vendor_state, PLATFORM_STATE)
-        gst_tcs   = cgst_tcs + sgst_tcs + igst_tcs
+        if has_gst:
+            cgst_tcs, sgst_tcs, igst_tcs = calc_tcs(ov, vendor_state, PLATFORM_STATE)
+            gst_tcs = cgst_tcs + sgst_tcs + igst_tcs
+        else:
+            gst_tcs = Decimal("0")
         tds       = calc_tds_194o(ov)
         ded       = comm_total + gst_tcs + tds
         net_o     = ov - ded
