@@ -29,7 +29,8 @@ class ProductSerializer(serializers.ModelSerializer):
         model  = Product
         fields = ['id', 'name', 'description', 'price', 'mrp', 'gst_percentage', 'category',
                   'is_available', 'is_veg', 'image', 'image_url', 'variants', 'created_at',
-                  'hsn_code', 'subcategory', 'is_returnable', 'is_cod', 'is_draft', 'delivery_time']
+                  'hsn_code', 'subcategory', 'is_returnable', 'is_cod', 'is_draft', 'delivery_time',
+                  'barcode', 'brand', 'manufacturer', 'net_weight', 'ingredients', 'nutritional_info', 'allergen_info', 'expiry_date']
 
     def get_image_url(self, obj):
         if obj.image:
@@ -114,7 +115,8 @@ class VendorRegisterSerializer(serializers.ModelSerializer):
 class AddProductSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Product
-        fields = ['name', 'description', 'price', 'mrp', 'gst_percentage', 'category', 'is_available', 'is_veg', 'image', 'hsn_code', 'subcategory', 'is_returnable', 'is_cod', 'is_draft', 'delivery_time']
+        fields = ['name', 'description', 'price', 'mrp', 'gst_percentage', 'category', 'is_available', 'is_veg', 'image', 'hsn_code', 'subcategory', 'is_returnable', 'is_cod', 'is_draft', 'delivery_time',
+                  'barcode', 'brand', 'manufacturer', 'net_weight', 'ingredients', 'nutritional_info', 'allergen_info', 'expiry_date']
 
 # ─── ADD VARIANT SERIALIZER ───────────────────────────────────────────────────
 class AddVariantSerializer(serializers.ModelSerializer):
