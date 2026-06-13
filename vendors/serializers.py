@@ -52,7 +52,7 @@ class VendorSerializer(serializers.ModelSerializer):
                   'is_open', 'status', 'products',
                   'distance', 'created_at',
                   'bank_account_name', 'bank_account_number', 'bank_ifsc_code', 'bank_name',
-                  'min_order_value', 'min_order']
+                  'min_order_value', 'min_order', 'gstin', 'pan', 'fssai_number']
 
     min_order_value = serializers.SerializerMethodField()
 
@@ -86,7 +86,8 @@ class VendorRegisterSerializer(serializers.ModelSerializer):
                   'phone_number', 'address', 'town',
                   'latitude', 'longitude',
                   'delivery_type', 'estimated_delivery_time',
-                  'delivery_radius']                          # ← NEW
+                  'delivery_radius',
+                  'gstin', 'pan', 'fssai_number']
 
     def create(self, validated_data):
         user     = self.context['request'].user
