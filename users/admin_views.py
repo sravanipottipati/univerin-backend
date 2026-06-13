@@ -51,3 +51,49 @@ def admin_stats(request):
             'tcs':             float(month_tcs),
         }
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_sellers_list(request):
+    """Admin gets all sellers with FSSAI details"""
+    from vendors.models import Vendor
+    vendors = Vendor.objects.all().order_by('-created_at')
+    data = []
+    for v in vendors:
+        data.append({
+            'id': str(v.id),
+            'shop_name': v.shop_name,
+            'category': v.category,
+            'phone_number': v.phone_number,
+            'town': v.town,
+            'gstin': v.gstin or '',
+            'fssai_number': v.fssai_number or '',
+            'fssai_certificate': v.fssai_certificate.url if v.fssai_certificate else '',
+            'status': v.status,
+            'is_verified': v.status == 'approved',
+            'created_at': v.created_at.strftime('%d %b %Y'),
+        })
+    return Response({'sellers': data, 'total': len(data)})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_verify_seller(request, vendor_id):
+    """Admin approves or rejects seller"""
+    from vendors.models import Vendor
+    try:
+        vendor = Vendor.objects.get(id=vendor_id)
+        action = request.data.get('action')  # 'approve' or 'reject'
+        if action == 'approve':
+            vendor.status = 'approved'
+            vendor.save()
+            return Response({'message': f'{vendor.shop_name} approved!'})
+        elif action == 'reject':
+            vendor.status = 'rejected'
+            vendor.save()
+            return Response({'message': f'{vendor.shop_name} rejected!'})
+        else:
+            return Response({'error': 'Invalid action'}, status=400)
+    except Vendor.DoesNotExist:
+        return Response({'error': 'Vendor not found'}, status=404)
