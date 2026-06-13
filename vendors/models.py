@@ -120,6 +120,15 @@ class Product(models.Model):
     is_cod         = models.BooleanField(default=True)
     is_draft       = models.BooleanField(default=False)
     delivery_time  = models.PositiveIntegerField(default=30)
+    # FSSAI compliance fields
+    barcode            = models.CharField(max_length=50, blank=True, null=True)
+    brand              = models.CharField(max_length=100, blank=True, null=True)
+    manufacturer       = models.CharField(max_length=200, blank=True, null=True)
+    net_weight         = models.CharField(max_length=50, blank=True, null=True)
+    ingredients        = models.TextField(blank=True, null=True)
+    nutritional_info   = models.TextField(blank=True, null=True)
+    allergen_info      = models.CharField(max_length=200, blank=True, null=True)
+    expiry_date        = models.DateField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.name} - {self.vendor.shop_name}"
