@@ -261,7 +261,7 @@ class ForgotPasswordView(APIView):
         sms_sent = False
         if api_key:
             try:
-                url = f"https://2factor.in/API/V1/{api_key}/SMS/{phone_number}/{otp_code}/AUTOGEN"
+                url = f"https://2factor.in/API/V1/{api_key}/SMS/{phone_number}/{otp_code}/OTP1"
                 resp = req.get(url, timeout=10)
                 result = resp.json()
                 sms_sent = result.get("Status") == "Success"
