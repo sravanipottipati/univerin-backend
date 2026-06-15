@@ -24,7 +24,7 @@ class UserSerializer(serializers.ModelSerializer):
         model  = User
         fields = [
             'id', 'full_name', 'phone_number', 'email',
-            'user_type', 'town', 'photo_url', 'created_at'
+            'user_type', 'town', 'photo_url', 'created_at', 'is_staff', 'is_superuser'
         ]
 
     def get_photo_url(self, obj):
