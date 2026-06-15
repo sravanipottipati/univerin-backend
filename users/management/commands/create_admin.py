@@ -7,10 +7,12 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         try:
             if not User.objects.filter(phone_number='9999999999').exists():
-                User.objects.create_superuser(
+                User.objects.create_user(
                     phone_number='9999999999',
                     password='admin123',
-                    full_name='Admin'
+                    full_name='Admin',
+                    is_staff=True,
+                    is_admin=True,
                 )
                 self.stdout.write('Admin created!')
             else:
