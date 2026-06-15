@@ -648,3 +648,19 @@ class AdminRefundView(APIView):
             return Response({'message': 'Refund rejected', 'status': 'rejected'})
 
         return Response({'error': 'Invalid action. Use approve or reject'}, status=400)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cancel_order(request, order_id):
+    """Cancel an order"""
+    try:
+        order = Order.objects.get(id=order_id, buyer=request.user)
+        if order.status in ['placed', 'pending']:
+            order.status = 'cancelled'
+            order.save()
+            return Response({'message': 'Order cancelled successfully'})
+        return Response({'error': 'Order cannot be cancelled'}, status=400)
+    except Order.DoesNotExist:
+        return Response({'error': 'Order not found'}, status=404)
+
