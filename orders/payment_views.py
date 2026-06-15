@@ -2,6 +2,7 @@ import razorpay
 import hmac
 import hashlib
 import os
+from decimal import Decimal
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -148,4 +149,74 @@ def create_razorpay_only(request):
         })
     except Exception as e:
         print(f'[Razorpay] Create order error: {e}')
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def place_order_after_payment(request):
+    """Place order only after Razorpay payment is verified"""
+    try:
+        razorpay_order_id   = request.data.get('razorpay_order_id')
+        razorpay_payment_id = request.data.get('razorpay_payment_id')
+        razorpay_signature  = request.data.get('razorpay_signature')
+        order_data          = request.data.get('order_data')
+
+        if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature, order_data]):
+            return Response({'error': 'Missing payment or order details'}, status=400)
+
+        # Verify Razorpay signature first
+        key_secret = os.environ.get('RAZORPAY_KEY_SECRET', '')
+        message    = f'{razorpay_order_id}|{razorpay_payment_id}'
+        signature  = hmac.new(
+            key_secret.encode('utf-8'),
+            message.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+
+        if signature != razorpay_signature:
+            return Response({'error': 'Invalid payment signature'}, status=400)
+
+        # Payment verified! Now create the order
+        from orders.views import PlaceOrderView
+        from rest_framework.test import APIRequestFactory
+        from vendors.models import Vendor, Product
+        from orders.models import Order, OrderItem
+        from decimal import Decimal
+
+        vendor = Vendor.objects.get(id=order_data['vendor_id'])
+        order = Order.objects.create(
+            buyer=request.user,
+            vendor=vendor,
+            delivery_address=order_data['delivery_address'],
+            payment_mode='online',
+            payment_status='paid',
+            notes=order_data.get('notes', ''),
+            delivery_fee=Decimal(str(order_data.get('delivery_fee', 0))),
+            total_amount=Decimal(str(order_data.get('total', 0))),
+            razorpay_order_id=razorpay_order_id,
+            razorpay_payment_id=razorpay_payment_id,
+            status='placed',
+        )
+
+        # Add order items
+        for item in order_data.get('items', []):
+            product = Product.objects.get(id=item['product_id'])
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                quantity=item['quantity'],
+                price=Decimal(str(item['price'])),
+            )
+
+        # Calculate subtotal
+        subtotal = sum(Decimal(str(i['price'])) * i['quantity'] for i in order_data.get('items', []))
+        order.subtotal = subtotal
+        order.save()
+
+        from orders.serializers import OrderSerializer
+        return Response({'order': OrderSerializer(order).data}, status=201)
+
+    except Exception as e:
+        print(f'[PlaceAfterPay] Error: {e}')
         return Response({'error': str(e)}, status=500)

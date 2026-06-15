@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import RefundRequestView, AdminRefundView
-from .payment_views import create_payment_order, verify_payment, payment_failed, create_razorpay_only
+from .payment_views import create_payment_order, verify_payment, payment_failed, create_razorpay_only, place_order_after_payment
 from .views import (ClearNotificationsView,submit_return, PlaceOrderView, BuyerOrdersView,
                     VendorOrdersView, UpdateOrderStatusView, cancel_order,
                     OrderDetailView, NotificationListView,
@@ -42,5 +42,6 @@ urlpatterns = [
     path('payment/verify/',                      verify_payment,                     name='verify-payment'),
     path('payment/failed/',                      payment_failed,                     name='payment-failed'),
     path('payment/create-razorpay/',             create_razorpay_only,               name='create-razorpay-only'),
+    path('payment/place-after-payment/',         place_order_after_payment,          name='place-after-payment'),
     path('<uuid:order_id>/cancel/',              cancel_order,                 name='cancel-order'),
 ]
