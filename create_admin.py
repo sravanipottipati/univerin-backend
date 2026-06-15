@@ -2,10 +2,15 @@ import django, os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'univerin_backend.settings')
 django.setup()
 from users.models import User
-if not User.objects.filter(phone_number='9999999999').exists():
-    u = User(phone_number='9999999999', full_name='Admin', is_staff=True, is_superuser=True)
-    u.set_password('admin123')
-    u.save()
-    print('Admin created!')
-else:
-    print('Already exists!')
+try:
+    if not User.objects.filter(phone_number='9999999999').exists():
+        User.objects.create_superuser(
+            phone_number='9999999999',
+            password='admin123',
+            full_name='Admin'
+        )
+        print('Admin created!')
+    else:
+        print('Already exists!')
+except Exception as e:
+    print('Error creating admin:', e)
