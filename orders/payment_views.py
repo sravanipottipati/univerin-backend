@@ -121,3 +121,31 @@ def payment_failed(request):
         return Response({'message': 'Payment failure recorded'})
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_razorpay_only(request):
+    """Create Razorpay order WITHOUT placing Univerin order first"""
+    try:
+        amount = request.data.get('amount')
+        shop_name = request.data.get('shop_name', 'Shop')
+        if not amount:
+            return Response({'error': 'amount is required'}, status=400)
+        amount_paise = int(float(amount) * 100)
+        client = get_razorpay_client()
+        razorpay_order = client.order.create({
+            'amount': amount_paise,
+            'currency': 'INR',
+            'receipt': f'temp_{request.user.phone_number}',
+        })
+        return Response({
+            'razorpay_order_id': razorpay_order['id'],
+            'amount': amount_paise,
+            'currency': 'INR',
+            'key_id': os.environ.get('RAZORPAY_KEY_ID', ''),
+            'shop_name': shop_name,
+        })
+    except Exception as e:
+        print(f'[Razorpay] Create order error: {e}')
+        return Response({'error': str(e)}, status=500)
