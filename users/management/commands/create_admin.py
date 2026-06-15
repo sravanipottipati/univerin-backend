@@ -13,6 +13,7 @@ class Command(BaseCommand):
                     full_name='Admin',
                     is_staff=True,
                     is_admin=True,
+                    user_type='admin',
                 )
                 self.stdout.write('Admin created!')
             else:
