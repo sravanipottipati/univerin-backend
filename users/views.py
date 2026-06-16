@@ -251,7 +251,7 @@ class ForgotPasswordView(APIView):
         PasswordResetOTP.objects.create(
             user=user,
             otp=otp_code,
-            expires_at=timezone.now() + timedelta(minutes=10),
+            expires_at=timezone.now() + timedelta(minutes=30),
         )
 
         # Send OTP via 2Factor.in (SMS only)
