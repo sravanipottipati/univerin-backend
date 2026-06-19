@@ -375,3 +375,24 @@ def make_admin(request):
     user.is_superuser = True
     user.save()
     return Response({'message': f'{user.phone_number} is now admin!'})
+
+
+class VerifyOTPView(APIView):
+    def post(self, request):
+        phone_number = request.data.get('phone_number', '').strip()
+        otp_code     = request.data.get('otp', '').strip()
+        if not phone_number or not otp_code:
+            return Response({'error': 'Phone number and OTP are required'}, status=400)
+        try:
+            user = User.objects.get(phone_number=phone_number)
+        except User.DoesNotExist:
+            return Response({'error': 'No account found with this phone number'}, status=404)
+        try:
+            otp_record = PasswordResetOTP.objects.filter(
+                user=user, otp=otp_code, is_used=False
+            ).latest('created_at')
+        except PasswordResetOTP.DoesNotExist:
+            return Response({'error': 'Invalid OTP. Please request a new one.'}, status=400)
+        if not otp_record.is_valid():
+            return Response({'error': 'OTP has expired. Please request a new one.'}, status=400)
+        return Response({'message': 'OTP verified successfully', 'valid': True})

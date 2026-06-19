@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (RegisterView, LoginView, ProfileView,
                     AddressListView, AddressDetailView, SetDefaultAddressView,
                     UploadProfilePhotoView, ForgotPasswordView, ResetPasswordView,
-                    delete_account_request, make_admin)
+                    VerifyOTPView, delete_account_request, make_admin)
 from rest_framework_simplejwt.views import TokenRefreshView
 from .admin_views import admin_stats
 from . import admin_views
@@ -14,6 +14,7 @@ urlpatterns = [
     path('token/refresh/',                       TokenRefreshView.as_view(),       name='token_refresh'),
     path('forgot-password/',                     ForgotPasswordView.as_view(),     name='forgot-password'),
     path('reset-password/',                      ResetPasswordView.as_view(),      name='reset-password'),
+    path('verify-otp/',                           VerifyOTPView.as_view(),          name='verify-otp'),
     # ─── PROFILE ──────────────────────────────────────────────────────────────
     path('profile/',                             ProfileView.as_view(),            name='profile'),
     path('profile/photo/',                       UploadProfilePhotoView.as_view(), name='profile-photo'),
