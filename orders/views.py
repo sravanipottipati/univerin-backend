@@ -10,6 +10,30 @@ from wallet.models import WalletTransaction
 from django.utils import timezone
 
 
+def send_push_notification(push_token, title, message, data=None):
+    """Send a push notification via Expo's push API"""
+    if not push_token:
+        return
+    try:
+        import requests as req
+        payload = {
+            'to': push_token,
+            'title': title,
+            'body': message,
+            'sound': 'default',
+            'data': data or {},
+        }
+        resp = req.post(
+            'https://exp.host/--/api/v2/push/send',
+            json=payload,
+            headers={'Content-Type': 'application/json', 'Accept': 'application/json'},
+            timeout=10,
+        )
+        print(f"[Push] Sent to {push_token[:20]}... | Response: {resp.json()}")
+    except Exception as e:
+        print(f"[Push] Error sending push notification: {e}")
+
+
 def create_notification(user, notif_type, title, message, order=None):
     try:
         # Don't create duplicate notifications for same order + type
@@ -22,6 +46,13 @@ def create_notification(user, notif_type, title, message, order=None):
             message=message,
             order=order,
         )
+        # Also send push notification to user's phone
+        push_token = getattr(user, 'fcm_token', None)
+        if push_token:
+            send_push_notification(
+                push_token, title, message,
+                data={'order_id': str(order.id) if order else None, 'type': notif_type}
+            )
     except Exception as e:
         print(f"Notification error: {e}")
 

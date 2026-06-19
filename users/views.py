@@ -396,3 +396,15 @@ class VerifyOTPView(APIView):
         if not otp_record.is_valid():
             return Response({'error': 'OTP has expired. Please request a new one.'}, status=400)
         return Response({'message': 'OTP verified successfully', 'valid': True})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def save_push_token(request):
+    """Save Expo push token for the logged-in user"""
+    token = request.data.get('push_token', '').strip()
+    if not token:
+        return Response({'error': 'push_token is required'}, status=400)
+    request.user.fcm_token = token
+    request.user.save()
+    return Response({'message': 'Push token saved successfully'})
