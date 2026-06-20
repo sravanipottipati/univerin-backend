@@ -552,6 +552,7 @@ class PopularProductsView(APIView):
                 'id':           str(p.id),
                 'name':         p.name,
                 'price':        str(p.price),
+                'mrp':          str(p.mrp) if p.mrp else None,
                 'category':     p.category,
                 'image_url':    p.image.url if p.image else None,
                 'vendor_id':    str(p.vendor.id),
