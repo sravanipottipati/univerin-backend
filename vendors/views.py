@@ -301,9 +301,20 @@ class SearchView(APIView):
         min_price = request.query_params.get('min_price', None)
         max_price = request.query_params.get('max_price', None)
         sort_by   = request.query_params.get('sort_by', 'relevant')
+        buyer_lat = request.query_params.get('lat', None)
+        buyer_lng = request.query_params.get('lng', None)
 
         if not q:
             return Response({'shops': [], 'products': []})
+
+        nearby_ids = None
+        if buyer_lat and buyer_lng:
+            try:
+                float(buyer_lat)
+                float(buyer_lng)
+                nearby_ids = list(Vendor.objects.filter(status='approved').values_list('id', flat=True))
+            except (ValueError, TypeError):
+                nearby_ids = None
 
         # ── Shops ──────────────────────────────────────────────────────────────
         shops = Vendor.objects.filter(status='approved')
@@ -323,7 +334,7 @@ class SearchView(APIView):
 
         # ── Products ───────────────────────────────────────────────────────────
         products = Product.objects.filter(is_available=True)
-        if buyer_lat and buyer_lng and 'nearby_ids' in dir():
+        if nearby_ids is not None:
             products = products.filter(vendor__id__in=nearby_ids)
         elif town:
             products = products.filter(vendor__town__icontains=town)
