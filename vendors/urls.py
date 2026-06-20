@@ -3,7 +3,7 @@ from .views import (fix_vendor_gps_view, VendorRegisterView, NearbyShopsView, Po
                     ShopDetailView, AddProductView,
                     ShopProductsView, MyShopView, ToggleShopView,
                     EditProductView, SearchView, WishlistView,
-                    ProductVariantView, EditVariantView)
+                    ProductVariantView, EditVariantView, vendor_reviews)
 
 urlpatterns = [
     path('fix-gps/', fix_vendor_gps_view, name='fix-gps'),
@@ -27,6 +27,7 @@ urlpatterns = [
 
     # ─── SHOP ─────────────────────────────────────────────────────────────────
     path('popular-products/',                        PopularProductsView.as_view(), name='popular-products'),
+    path('<uuid:vendor_id>/reviews/',                vendor_reviews,                 name='vendor-reviews'),
     path('<uuid:vendor_id>/',                        ShopDetailView.as_view(),      name='shop-detail'),
     path('<uuid:vendor_id>/products/',               ShopProductsView.as_view(),    name='shop-products'),
 ]

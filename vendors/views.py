@@ -601,3 +601,27 @@ def fix_vendor_gps_view(request):
         except Exception as e:
             results.append(f"ERROR: {v.shop_name}: {str(e)}")
     return Response({'results': results, 'count': len(results)})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def vendor_reviews(request, vendor_id):
+    """List all reviews for a given vendor/shop"""
+    from orders.models import Review
+    try:
+        vendor = Vendor.objects.get(id=vendor_id)
+    except Vendor.DoesNotExist:
+        return Response({'error': 'Shop not found'}, status=404)
+    reviews = Review.objects.filter(vendor=vendor).select_related('buyer').order_by('-created_at')
+    data = [{
+        'id':         str(r.id),
+        'buyer_name': r.buyer.full_name,
+        'rating':     r.rating,
+        'comment':    r.comment or '',
+        'created_at': r.created_at.isoformat(),
+    } for r in reviews]
+    return Response({
+        'count':        len(data),
+        'average_rating': float(vendor.rating),
+        'reviews':      data,
+    })
