@@ -310,9 +310,18 @@ class SearchView(APIView):
         nearby_ids = None
         if buyer_lat and buyer_lng:
             try:
-                float(buyer_lat)
-                float(buyer_lng)
-                nearby_ids = list(Vendor.objects.filter(status='approved').values_list('id', flat=True))
+                blat = float(buyer_lat)
+                blng = float(buyer_lng)
+                r = float(radius)
+                nearby_ids = []
+                for v in Vendor.objects.filter(status='approved'):
+                    if v.latitude and v.longitude:
+                        dlat = math.radians(v.latitude - blat)
+                        dlon = math.radians(v.longitude - blng)
+                        a = math.sin(dlat/2)**2 + math.cos(math.radians(blat)) * math.cos(math.radians(v.latitude)) * math.sin(dlon/2)**2
+                        dist = 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+                        if dist <= r:
+                            nearby_ids.append(v.id)
             except (ValueError, TypeError):
                 nearby_ids = None
 
