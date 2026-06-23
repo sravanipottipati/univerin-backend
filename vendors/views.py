@@ -303,6 +303,7 @@ class SearchView(APIView):
         sort_by   = request.query_params.get('sort_by', 'relevant')
         buyer_lat = request.query_params.get('lat', None)
         buyer_lng = request.query_params.get('lng', None)
+        radius    = request.query_params.get('radius', 20)
 
         if not q:
             return Response({'shops': [], 'products': []})
