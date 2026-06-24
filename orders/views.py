@@ -405,6 +405,8 @@ def get_cart(request):
             'vendor_id':     str(item.vendor.id),
             'vendor_name':   item.vendor.shop_name,
             'vendor_mov':    {'restaurant':499,'supermarket':699,'bakery':399,'veg_fruits':199}.get(item.vendor.category, 199),
+            'vendor_lat':    item.vendor.latitude,
+            'vendor_lng':    item.vendor.longitude,
             'quantity':      item.quantity,
             'subtotal':      str(item.subtotal),
         })
