@@ -282,6 +282,14 @@ class UpdateOrderStatusView(APIView):
                 message=f'Order #{str(order.id)[:8].upper()} was cancelled by customer.',
                 order=order,
             )
+            # Notify buyer their cancellation went through
+            create_notification(
+                user=order.buyer,
+                notif_type='order_cancelled',
+                title='Order Cancelled ❌',
+                message=f'Your order from {order.vendor.shop_name} has been cancelled.',
+                order=order,
+            )
             return Response({'message': 'Order cancelled', 'order': OrderSerializer(order).data})
         return Response({'error': 'Unauthorized'}, status=403)
 
