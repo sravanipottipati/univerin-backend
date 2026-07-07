@@ -204,6 +204,8 @@ class Refund(models.Model):
     order        = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='refund')
     requested_by = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='refunds')
     reason       = models.TextField()
+    photo        = models.ImageField(upload_to='refund_photos/', blank=True, null=True)
+    comment      = models.TextField(blank=True, null=True)
     status       = models.CharField(max_length=20, choices=STATUS_CHOICES, default='requested')
     admin_note   = models.TextField(blank=True, null=True)
     approved_by  = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_refunds')

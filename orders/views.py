@@ -607,10 +607,15 @@ class RefundRequestView(APIView):
         if not reason:
             return Response({'error': 'Please provide a reason for refund'}, status=400)
 
+        comment = request.data.get('comment', '').strip()
+        photo = request.FILES.get('photo', None)
+
         refund = Refund.objects.create(
             order=order,
             requested_by=request.user,
             reason=reason,
+            comment=comment or None,
+            photo=photo or None,
             status='requested'
         )
         return Response({
