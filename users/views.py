@@ -340,26 +340,28 @@ from rest_framework.permissions import IsAuthenticated
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def delete_account_request(request):
-    """Send account deletion request email to admin"""
+    """Instantly deactivate account and notify admin"""
     user = request.user
     try:
-        from django.core.mail import send_mail
-        send_mail(
-            subject=f'Account Deletion Request - {user.phone_number}',
-            message=f"""
-Account Deletion Request received:
-
-User Phone: {user.phone_number}
-User ID: {user.id}
-Request Time: {__import__('datetime').datetime.now().strftime('%d %b %Y %H:%M')}
-
-Please delete this account within 24 hours.
-            """,
-            from_email='contact@univerin.in',
-            recipient_list=['contact@univerin.in'],
-            fail_silently=True,
-        )
-        return Response({'message': 'Deletion request submitted successfully.'}, status=200)
+        phone = user.phone_number
+        user.is_active = False
+        user.full_name = 'Deleted User'
+        user.email     = ''
+        user.save()
+        try:
+            from django.core.mail import send_mail
+            send_mail(
+                subject=f'Account Deleted - {phone}',
+                message=f"""Account deleted by user:\nPhone: {phone}\nID: {user.id}\nTime: {__import__("datetime").datetime.now().strftime("%d %b %Y %H:%M")}""",
+                from_email='contact@univerin.in',
+                recipient_list=['contact@univerin.in'],
+                fail_silently=True,
+            )
+        except Exception:
+            pass
+        return Response({'message': 'Account deleted successfully.'}, status=200)
+    except Exception as e:
+        return Response({'error': 'Failed to delete account. Please try again.'}, status=500)
     except Exception as e:
         return Response({'message': 'Request submitted. We will process it within 24 hours.'}, status=200)
 
