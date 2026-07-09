@@ -5,3 +5,4 @@ __pycache__/
 db.sqlite3
 *.egg-info/
 .DS_Store
+firebase-service-account.json

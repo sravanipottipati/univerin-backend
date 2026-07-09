@@ -31,6 +31,67 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+# ─── FIREBASE OTP LOGIN ──────────────────────────────────────────────────────
+import firebase_admin
+from firebase_admin import credentials, auth as firebase_auth
+
+# Initialize Firebase Admin SDK (only once)
+if not firebase_admin._apps:
+    cred = credentials.Certificate('firebase-service-account.json')
+    firebase_admin.initialize_app(cred)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def firebase_otp_login(request):
+    """Verify Firebase ID token and return JWT tokens"""
+    id_token = request.data.get('id_token')
+    user_type = request.data.get('user_type', 'buyer')  # buyer or vendor
+    full_name = request.data.get('full_name', '')
+
+    if not id_token:
+        return Response({'error': 'Firebase ID token is required'}, status=400)
+
+    try:
+        # Verify the Firebase token
+        decoded_token = firebase_auth.verify_id_token(id_token)
+        phone_number  = decoded_token.get('phone_number', '')
+
+        if not phone_number:
+            return Response({'error': 'Phone number not found in token'}, status=400)
+
+        # Remove +91 prefix if present
+        phone_number = phone_number.replace('+91', '').strip()
+
+        # Find or create user
+        try:
+            user = User.objects.get(phone_number=phone_number)
+        except User.DoesNotExist:
+            # Create new user
+            user = User.objects.create_user(
+                phone_number=phone_number,
+                password=None,
+                user_type=user_type,
+                full_name=full_name or phone_number,
+            )
+            user.set_unusable_password()
+            user.save()
+
+        if not user.is_active:
+            return Response({'error': 'This account has been deactivated.'}, status=403)
+
+        tokens = get_tokens_for_user(user)
+        return Response({
+            'message': 'Login successful',
+            'user':    UserSerializer(user).data,
+            'tokens':  tokens,
+            'is_new_user': False,
+        }, status=200)
+
+    except firebase_auth.InvalidIdTokenError:
+        return Response({'error': 'Invalid or expired OTP. Please try again.'}, status=401)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
 class LoginView(APIView):
     def post(self, request):
         phone_number = request.data.get('phone_number')

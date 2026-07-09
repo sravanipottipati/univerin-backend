@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import (RegisterView, LoginView, ProfileView,
+from .views import (RegisterView, LoginView, firebase_otp_login, ProfileView,
                     AddressListView, AddressDetailView, SetDefaultAddressView,
                     UploadProfilePhotoView, ForgotPasswordView, ResetPasswordView,
                     VerifyOTPView, delete_account_request, make_admin, save_push_token)
@@ -10,6 +10,7 @@ from . import admin_views
 urlpatterns = [
     # ─── AUTH ─────────────────────────────────────────────────────────────────
     path('register/',                            RegisterView.as_view(),           name='register'),
+    path('firebase-login/',                      firebase_otp_login,               name='firebase-login'),
     path('login/',                               LoginView.as_view(),              name='login'),
     path('token/refresh/',                       TokenRefreshView.as_view(),       name='token_refresh'),
     path('forgot-password/',                     ForgotPasswordView.as_view(),     name='forgot-password'),
