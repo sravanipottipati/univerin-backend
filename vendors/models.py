@@ -39,6 +39,7 @@ class Vendor(models.Model):
     pan                     = models.CharField(max_length=10, blank=True, null=True)
     fssai_number            = models.CharField(max_length=14, blank=True, null=True)
     fssai_certificate       = models.ImageField(upload_to="fssai_certificates/", blank=True, null=True)
+    banner_image            = CloudinaryField('image', folder='univerin/shop_banners', blank=True, null=True)
     latitude                = models.FloatField(null=True, blank=True)
     longitude               = models.FloatField(null=True, blank=True)
     delivery_type           = models.CharField(max_length=10, choices=DELIVERY_CHOICES, default='both')
