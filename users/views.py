@@ -37,14 +37,20 @@ import firebase_admin
 from firebase_admin import credentials, auth as firebase_auth
 
 # Initialize Firebase Admin SDK (only once)
-if not firebase_admin._apps:
+def _init_firebase():
     import os, json
-    firebase_key = os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON')
-    if firebase_key:
-        cred = credentials.Certificate(json.loads(firebase_key))
-    else:
-        cred = credentials.Certificate('firebase-service-account.json')
-    firebase_admin.initialize_app(cred)
+    if firebase_admin._apps:
+        return
+    try:
+        firebase_key = os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON')
+        if firebase_key:
+            cred = credentials.Certificate(json.loads(firebase_key))
+        else:
+            cred = credentials.Certificate('firebase-service-account.json')
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        print(f'Firebase init error: {e}')
+_init_firebase()
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
