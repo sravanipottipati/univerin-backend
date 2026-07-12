@@ -104,6 +104,68 @@ def firebase_otp_login(request):
     except Exception as e:
         return Response({'error': str(e)}, status=500)
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_login_otp(request):
+    """Send OTP for login (no password needed)"""
+    phone_number = request.data.get('phone_number', '').strip()
+    if not phone_number or len(phone_number) != 10:
+        return Response({'error': 'Enter a valid 10-digit phone number'}, status=400)
+    try:
+        user = User.objects.get(phone_number=phone_number)
+    except User.DoesNotExist:
+        return Response({'error': 'No account found with this phone number. Please register first.'}, status=404)
+    if not user.is_active:
+        return Response({'error': 'This account has been deactivated.'}, status=403)
+    # Reuse PasswordResetOTP model for login OTP
+    from .models import PasswordResetOTP
+    otp_code = PasswordResetOTP.generate_otp()
+    PasswordResetOTP.objects.create(user=user, otp=otp_code)
+    # Send OTP via 2Factor.in
+    import requests as req
+    import os
+    api_key = os.environ.get("TWOFACTOR_API_KEY", "")
+    if api_key:
+        try:
+            url = f"https://2factor.in/API/V1/{api_key}/SMS/+91{phone_number}/{otp_code}"
+            resp = req.get(url, timeout=10)
+            result = resp.json()
+            print(f"[Login OTP] 2Factor: {result}")
+        except Exception as e:
+            print(f"[Login OTP] SMS error: {e}")
+    print(f"[Login OTP] Phone: {phone_number} | OTP: {otp_code}")
+    return Response({'message': 'OTP sent successfully'}, status=200)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_login_otp(request):
+    """Verify OTP and return JWT tokens"""
+    phone_number = request.data.get('phone_number', '').strip()
+    otp_code     = request.data.get('otp', '').strip()
+    if not phone_number or not otp_code:
+        return Response({'error': 'Phone number and OTP are required'}, status=400)
+    try:
+        user = User.objects.get(phone_number=phone_number)
+    except User.DoesNotExist:
+        return Response({'error': 'No account found with this phone number'}, status=404)
+    from .models import PasswordResetOTP
+    try:
+        otp_record = PasswordResetOTP.objects.filter(
+            user=user, otp=otp_code, is_used=False
+        ).latest('created_at')
+    except PasswordResetOTP.DoesNotExist:
+        return Response({'error': 'Invalid OTP. Please check and try again.'}, status=400)
+    if not otp_record.is_valid():
+        return Response({'error': 'OTP has expired. Please request a new one.'}, status=400)
+    otp_record.is_used = True
+    otp_record.save()
+    tokens = get_tokens_for_user(user)
+    return Response({
+        'message': 'Login successful',
+        'user': UserSerializer(user).data,
+        'tokens': tokens,
+    }, status=200)
+
 class LoginView(APIView):
     def post(self, request):
         phone_number = request.data.get('phone_number')
