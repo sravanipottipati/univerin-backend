@@ -106,6 +106,78 @@ def firebase_otp_login(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+def send_register_otp(request):
+    """Send OTP for registration — creates account after verification"""
+    phone_number = request.data.get('phone_number', '').strip()
+    if not phone_number or len(phone_number) != 10:
+        return Response({'error': 'Enter a valid 10-digit phone number'}, status=400)
+    # Check if already registered
+    if User.objects.filter(phone_number=phone_number, is_active=True).exists():
+        return Response({'error': 'An account already exists with this phone number. Please login instead.'}, status=400)
+    from .models import PasswordResetOTP
+    # Create temp user or use existing inactive
+    user, created = User.objects.get_or_create(
+        phone_number=phone_number,
+        defaults={'full_name': request.data.get('full_name', ''), 'user_type': request.data.get('user_type', 'buyer'), 'is_active': False}
+    )
+    if not created:
+        user.full_name = request.data.get('full_name', user.full_name)
+        user.save()
+    otp_code = PasswordResetOTP.generate_otp()
+    PasswordResetOTP.objects.create(user=user, otp=otp_code)
+    import requests as req, os
+    api_key = os.environ.get("TWOFACTOR_API_KEY", "")
+    if api_key:
+        try:
+            url = f"https://2factor.in/API/V1/{api_key}/SMS/+91{phone_number}/{otp_code}"
+            resp = req.get(url, timeout=10)
+            print(f"[Register OTP] 2Factor: {resp.json()}")
+        except Exception as e:
+            print(f"[Register OTP] SMS error: {e}")
+    print(f"[Register OTP] Phone: {phone_number} | OTP: {otp_code}")
+    return Response({'message': 'OTP sent successfully'}, status=200)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_register_otp(request):
+    """Verify OTP and activate account"""
+    phone_number = request.data.get('phone_number', '').strip()
+    otp_code     = request.data.get('otp', '').strip()
+    full_name    = request.data.get('full_name', '').strip()
+    user_type    = request.data.get('user_type', 'buyer')
+    if not phone_number or not otp_code:
+        return Response({'error': 'Phone number and OTP are required'}, status=400)
+    try:
+        user = User.objects.get(phone_number=phone_number)
+    except User.DoesNotExist:
+        return Response({'error': 'No account found'}, status=404)
+    from .models import PasswordResetOTP
+    try:
+        otp_record = PasswordResetOTP.objects.filter(
+            user=user, otp=otp_code, is_used=False
+        ).latest('created_at')
+    except PasswordResetOTP.DoesNotExist:
+        return Response({'error': 'Invalid OTP. Please check and try again.'}, status=400)
+    if not otp_record.is_valid():
+        return Response({'error': 'OTP has expired. Please request a new one.'}, status=400)
+    otp_record.is_used = True
+    otp_record.save()
+    # Activate user
+    user.is_active = True
+    if full_name:
+        user.full_name = full_name
+    user.user_type = user_type
+    user.set_unusable_password()
+    user.save()
+    tokens = get_tokens_for_user(user)
+    return Response({
+        'message': 'Registration successful',
+        'user': UserSerializer(user).data,
+        'tokens': tokens,
+    }, status=201)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
 def send_login_otp(request):
     """Send OTP for login (no password needed)"""
     phone_number = request.data.get('phone_number', '').strip()
