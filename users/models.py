@@ -24,12 +24,13 @@ class User(AbstractBaseUser):
         ('buyer',  'Buyer'),
         ('vendor', 'Vendor'),
         ('admin',  'Admin'),
+        ('delivery_partner', 'Delivery Partner'),
     )
     id            = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name     = models.CharField(max_length=100)
     phone_number  = models.CharField(max_length=10, unique=True)
     email         = models.EmailField(blank=True, null=True)
-    user_type     = models.CharField(max_length=10, choices=USER_TYPES, default='buyer')
+    user_type     = models.CharField(max_length=20, choices=USER_TYPES, default='buyer')
     is_active     = models.BooleanField(default=True)
     is_admin      = models.BooleanField(default=False)
     is_staff      = models.BooleanField(default=False)

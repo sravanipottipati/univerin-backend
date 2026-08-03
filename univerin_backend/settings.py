@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'invoices',
     'orders',
     'wallet',
+    'delivery_partner',
 ]
 
 MIDDLEWARE = [
