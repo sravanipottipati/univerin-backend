@@ -81,3 +81,23 @@ class DPOnboardingStatusView(APIView):
             'vehicle_number': dp.vehicle_number,
             'rejection_reason': dp.rejection_reason,
         }, status=status.HTTP_200_OK)
+class DPDutyToggleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.user_type != 'delivery_partner':
+            return Response({'error': 'Not a delivery partner account'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            dp = request.user.delivery_partner
+        except DeliveryPartner.DoesNotExist:
+            return Response({'error': 'Complete onboarding first'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if dp.status != 'approved':
+            return Response({'error': 'Your account is not yet approved'}, status=status.HTTP_403_FORBIDDEN)
+
+        is_online = request.data.get('is_online', False)
+        dp.is_online = bool(is_online)
+        dp.save(update_fields=['is_online', 'updated_at'])
+
+        return Response({'message': 'Status updated', 'is_online': dp.is_online}, status=status.HTTP_200_OK)
