@@ -42,6 +42,9 @@ class DeliveryPartner(models.Model):
     rejection_reason = models.TextField(blank=True, null=True)
 
     is_online = models.BooleanField(default=False)
+    current_latitude = models.FloatField(null=True, blank=True)
+    current_longitude = models.FloatField(null=True, blank=True)
+    location_updated_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

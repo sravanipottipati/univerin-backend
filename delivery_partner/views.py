@@ -101,3 +101,32 @@ class DPDutyToggleView(APIView):
         dp.save(update_fields=['is_online', 'updated_at'])
 
         return Response({'message': 'Status updated', 'is_online': dp.is_online}, status=status.HTTP_200_OK)
+class DPLocationUpdateView(APIView):
+    """
+    POST /dp/location/update/
+    body: { "latitude": 17.4123, "longitude": 78.4567 }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.user_type != 'delivery_partner':
+            return Response({'error': 'Not a delivery partner account'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            dp = request.user.delivery_partner
+        except DeliveryPartner.DoesNotExist:
+            return Response({'error': 'Complete onboarding first'}, status=status.HTTP_400_BAD_REQUEST)
+
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
+
+        if latitude is None or longitude is None:
+            return Response({'error': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.utils import timezone
+        dp.current_latitude = latitude
+        dp.current_longitude = longitude
+        dp.location_updated_at = timezone.now()
+        dp.save(update_fields=['current_latitude', 'current_longitude', 'location_updated_at'])
+
+        return Response({'message': 'Location updated'}, status=status.HTTP_200_OK)
