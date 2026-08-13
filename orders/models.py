@@ -68,6 +68,20 @@ class Order(models.Model):
     created_at       = models.DateTimeField(auto_now_add=True)
     updated_at       = models.DateTimeField(auto_now=True)
 
+    # ── Delivery Partner fields ──────────────────────────────────
+    DP_STATUS_CHOICES = (
+        ('unassigned',       'Unassigned'),
+        ('offered',          'Offered'),
+        ('accepted',         'Accepted'),
+        ('arrived_at_shop',  'Arrived at Shop'),
+        ('picked_up',        'Picked Up'),
+        ('arrived_at_buyer', 'Arrived at Buyer'),
+        ('delivered',        'Delivered'),
+    )
+    delivery_partner  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deliveries')
+    dp_status         = models.CharField(max_length=20, choices=DP_STATUS_CHOICES, default='unassigned')
+    delivery_otp      = models.CharField(max_length=6, blank=True, null=True)
+
     def __str__(self):
         return f"{self.order_number} — {self.buyer.full_name} from {self.vendor.shop_name}"
 
