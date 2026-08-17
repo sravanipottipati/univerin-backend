@@ -6,6 +6,7 @@ from rest_framework import status as http_status
 from django.utils import timezone
 
 from .models import Order
+from django.db.models import Sum
 
 
 def _is_dp(request):
@@ -190,4 +191,31 @@ class DPMyActiveOrderView(APIView):
             'total_amount': str(order.total_amount),
             'delivery_fee': str(order.delivery_fee),
             'payment_mode': order.payment_mode,
+        }, status=http_status.HTTP_200_OK)
+class DPEarningsView(APIView):
+    """
+    GET /dp/earnings/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.user_type != 'delivery_partner':
+            return Response({'error': 'Not a delivery partner account'}, status=http_status.HTTP_403_FORBIDDEN)
+
+        delivered_orders = Order.objects.filter(
+            delivery_partner=request.user,
+            dp_status='delivered',
+        )
+
+        today = timezone.now().date()
+        today_orders = delivered_orders.filter(updated_at__date=today)
+
+        today_total = today_orders.aggregate(total=Sum('delivery_fee'))['total'] or 0
+        all_time_total = delivered_orders.aggregate(total=Sum('delivery_fee'))['total'] or 0
+
+        return Response({
+            'today_earnings': str(today_total),
+            'today_deliveries': today_orders.count(),
+            'all_time_earnings': str(all_time_total),
+            'all_time_deliveries': delivered_orders.count(),
         }, status=http_status.HTTP_200_OK)

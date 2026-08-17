@@ -8,6 +8,7 @@ urlpatterns = [
     path("dp/onboarding/status/",    views.DPOnboardingStatusView.as_view()),
     path("dp/duty/toggle/",          views.DPDutyToggleView.as_view()),
     path("dp/location/update/",      views.DPLocationUpdateView.as_view()),
+    path("dp/earnings/",             order_dp_views.DPEarningsView.as_view()),
 
     # ─── Order flow ──────────────────────────────────────────────
     path("dp/orders/available/",                       order_dp_views.DPAvailableOrdersView.as_view()),
