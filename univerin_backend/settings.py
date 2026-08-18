@@ -9,6 +9,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-y5bmqy7jyx5#-&%@4%bl13oui5e=p7v9*atsxgj7(*udl7o2b%'
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://api.univerin.in',
+    'https://univerin.in',
+    'https://*.up.railway.app',
+]
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
