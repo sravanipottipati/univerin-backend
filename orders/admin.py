@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.http import HttpResponse
 from django.utils.html import format_html
 from django.urls import path
-from .models import Order, OrderItem, Notification, Review, Cart
+from .models import Order, OrderItem, Notification, Review, Cart, Refund, ReturnRequest
 from datetime import datetime
 
 @admin.register(Order)
@@ -194,3 +194,25 @@ class CouponAdmin(admin.ModelAdmin):
     list_display  = ['code', 'discount_type', 'discount_value', 'min_order', 'used_count', 'max_uses', 'valid_until', 'is_active']
     list_editable = ['is_active']
     search_fields = ['code']
+@admin.register(Refund)
+class RefundAdmin(admin.ModelAdmin):
+    list_display   = ['order', 'requested_by', 'reason_short', 'status', 'approved_by', 'requested_at']
+    list_filter    = ['status', 'requested_at']
+    search_fields  = ['order__order_number', 'requested_by__full_name']
+    list_editable  = ['status']
+    readonly_fields = ['requested_at', 'order', 'requested_by', 'reason', 'photo', 'comment']
+
+    def reason_short(self, obj):
+        return (obj.reason[:50] + '...') if len(obj.reason) > 50 else obj.reason
+    reason_short.short_description = 'Reason'
+
+    def save_model(self, request, obj, form, change):
+        if 'status' in form.changed_data and obj.status in ['approved', 'rejected'] and not obj.approved_by:
+            obj.approved_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(ReturnRequest)
+class ReturnRequestAdmin(admin.ModelAdmin):
+    list_display  = ['order', 'buyer', 'reason', 'created_at']
+    search_fields = ['order__order_number', 'buyer__full_name']
