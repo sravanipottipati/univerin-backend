@@ -7,10 +7,12 @@ from datetime import datetime
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display  = ['order_number', 'buyer', 'vendor', 'status', 'subtotal', 'commission_amount', 'tcs_amount', 'created_at', 'download_invoice']
-    list_filter   = ['status', 'payment_mode', 'created_at']
+    list_display  = ['order_number', 'buyer', 'vendor', 'status', 'delivery_partner', 'dp_status', 'subtotal', 'commission_amount', 'tcs_amount', 'created_at', 'download_invoice']
+    list_filter   = ['status', 'dp_status', 'payment_mode', 'created_at']
     search_fields = ['order_number', 'buyer__full_name', 'vendor__shop_name']
     ordering      = ['-created_at']
+    list_editable = ['status', 'delivery_partner', 'dp_status']
+    autocomplete_fields = ['delivery_partner']
 
     def download_invoice(self, obj):
         return format_html(
