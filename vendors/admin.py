@@ -21,14 +21,15 @@ class ProductInline(admin.TabularInline):
 # ─── VENDOR ADMIN ─────────────────────────────────────────────────────────────
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
-    list_display   = ['shop_name', 'category', 'town', 'status', 'is_open', 'gstin', 'fssai_number', 'rating', 'created_at']
+    list_display   = ['shop_name', 'category', 'town', 'status', 'is_open', 'min_order', 'platform_fee', 'gstin', 'fssai_number', 'rating', 'created_at']
     list_filter    = ['status', 'category', 'town', 'is_open']
     search_fields  = ['shop_name', 'town', 'gstin', 'fssai_number']
-    list_editable  = ['status', 'is_open']
+    list_editable  = ['status', 'is_open', 'min_order', 'platform_fee']
     readonly_fields = ['created_at', 'rating', 'total_reviews']
     fieldsets = (
         ('Basic Info', {'fields': ('shop_name', 'category', 'description', 'phone_number', 'status', 'is_open')}),
         ('Location', {'fields': ('town', 'state', 'address', 'latitude', 'longitude')}),
+        ('Pricing Configuration', {'fields': ('min_order', 'platform_fee')}),
         ('Compliance', {'fields': ('gstin', 'pan', 'fssai_number', 'fssai_certificate')}),
         ('Bank Details', {'fields': ('bank_name', 'bank_account_name', 'bank_account_number', 'bank_ifsc_code')}),
         ('Stats', {'fields': ('rating', 'total_reviews', 'created_at')}),
