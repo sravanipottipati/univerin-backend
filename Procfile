@@ -1,1 +1,1 @@
-web: python manage.py migrate && gunicorn univerin_backend.wsgi --timeout 120 --log-file -
+web: python manage.py migrate && python collect_static_manual.py && gunicorn univerin_backend.wsgi --timeout 120 --log-file -
