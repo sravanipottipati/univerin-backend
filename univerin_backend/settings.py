@@ -94,7 +94,7 @@ WSGI_APPLICATION = 'univerin_backend.wsgi.application'
 import dj_database_url
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL', 'postgresql://oorucart_user:oorucart123@localhost:5432/oorucart')
+        default=os.environ["DATABASE_URL"]
     )
 }
 

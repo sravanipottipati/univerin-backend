@@ -10,3 +10,6 @@ firebase-service-account.json
 # Generated Django static files
 staticfiles/*
 !staticfiles/.gitkeep
+
+# Local backups containing sensitive configuration
+backups/
