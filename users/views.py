@@ -258,12 +258,12 @@ class LoginView(APIView):
 
 class ProfileView(APIView):
     def get(self, request):
-        if not request.user.is_authenticated:
+        if request.user is None or not request.user.is_authenticated:
             return Response({'error': 'Not authenticated'}, status=401)
         return Response(UserSerializer(request.user).data)
 
     def patch(self, request):
-        if not request.user.is_authenticated:
+        if request.user is None or not request.user.is_authenticated:
             return Response({'error': 'Not authenticated'}, status=401)
         user           = request.user
         user.full_name = request.data.get('full_name', user.full_name)
