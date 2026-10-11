@@ -6,3 +6,7 @@ db.sqlite3
 *.egg-info/
 .DS_Store
 firebase-service-account.json
+
+# Generated Django static files
+staticfiles/*
+!staticfiles/.gitkeep
