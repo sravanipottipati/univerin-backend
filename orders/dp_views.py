@@ -360,12 +360,14 @@ class DPVerifyDeliveryOTPView(APIView):
         if order.dp_status != 'arrived_at_buyer':
             return Response({'error': 'Order is not ready for delivery confirmation'}, status=http_status.HTTP_400_BAD_REQUEST)
 
-        entered_otp = request.data.get('otp', '').strip()
+        raw_otp = request.data.get('otp')
+        entered_otp = str(raw_otp).strip() if raw_otp is not None else ''
         if entered_otp != order.delivery_otp:
             return Response({'error': 'Incorrect OTP. Please check with the customer.'}, status=http_status.HTTP_400_BAD_REQUEST)
 
         order.dp_status = 'delivered'
         order.status = 'delivered'
+        order.delivery_otp = None
         order.save()
 
         return Response({'message': 'Delivery confirmed successfully'}, status=http_status.HTTP_200_OK)
