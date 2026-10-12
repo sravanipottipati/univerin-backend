@@ -327,7 +327,16 @@ class OrderDetailView(APIView):
             not hasattr(user, 'vendor') or order.vendor != user.vendor
         ):
             return Response({'error': 'Unauthorized'}, status=403)
-        return Response(OrderSerializer(order).data)
+        data = OrderSerializer(order).data
+
+        if (
+            order.buyer_id == user.id
+            and order.dp_status in ('picked_up', 'arrived_at_buyer')
+            and order.delivery_otp
+        ):
+            data['delivery_otp'] = order.delivery_otp
+
+        return Response(data)
 
 
 # ─── NOTIFICATION VIEWS ───────────────────────────────────────────────────────
