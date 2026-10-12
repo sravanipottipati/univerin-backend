@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.db import transaction
 
 from .models import Order, DeliveryOffer
+from .views import create_notification
 from delivery_partner.models import DeliveryPartner
 from django.db.models import Sum
 
@@ -335,6 +336,17 @@ class DPOrderStatusUpdateView(APIView):
 
         order.save()
 
+        if new_status == 'picked_up':
+            transaction.on_commit(
+                lambda: create_notification(
+                    user=order.buyer,
+                    notif_type='order_dispatched',
+                    title='Out for Delivery 🛵',
+                    message='Your order has been picked up! Your delivery OTP is available in the app.',
+                    order=order,
+                )
+            )
+
         return Response({
             'message': 'Status updated',
             'dp_status': order.dp_status,
@@ -369,6 +381,16 @@ class DPVerifyDeliveryOTPView(APIView):
         order.status = 'delivered'
         order.delivery_otp = None
         order.save()
+
+        transaction.on_commit(
+            lambda: create_notification(
+                user=order.buyer,
+                notif_type='order_delivered',
+                title='Order Delivered 🎉',
+                message='Your order has been delivered successfully. Enjoy!',
+                order=order,
+            )
+        )
 
         return Response({'message': 'Delivery confirmed successfully'}, status=http_status.HTTP_200_OK)
 
