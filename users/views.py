@@ -257,6 +257,7 @@ class LoginView(APIView):
 
 
 class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request):
         if request.user is None or not request.user.is_authenticated:
             return Response({'error': 'Not authenticated'}, status=401)
