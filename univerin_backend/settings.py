@@ -98,6 +98,12 @@ DATABASES = {
     )
 }
 
+# Dedicated local test database
+if os.environ.get("UNIVERIN_TEST_DB") == "1":
+    DATABASES["default"]["TEST"] = {
+        "NAME": "test_univerin",
+    }
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},

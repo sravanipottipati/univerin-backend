@@ -4,8 +4,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status as http_status
 from django.utils import timezone
+from django.db import transaction
 
-from .models import Order
+from .models import Order, DeliveryOffer
+from delivery_partner.models import DeliveryPartner
 from django.db.models import Sum
 
 
@@ -16,32 +18,52 @@ def _is_dp(request):
 class DPAvailableOrdersView(APIView):
     """
     GET /dp/orders/available/
-    Lists orders ready for pickup that no delivery partner has taken yet.
-    Basic version: any order with status='preparing' or 'dispatched' and dp_status='unassigned'.
-    No geo-matching yet — shows all such orders to any online, approved DP.
+    Show only active delivery offers addressed to the current DP.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         if not _is_dp(request):
-            return Response({'error': 'Not a delivery partner account'}, status=http_status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'error': 'Not a delivery partner account'},
+                status=http_status.HTTP_403_FORBIDDEN
+            )
 
-        orders = Order.objects.filter(
-            status__in=['preparing', 'dispatched'],
-            dp_status='unassigned',
-        ).order_by('created_at')
+        from orders.models import DeliveryOffer
+
+        dp = DeliveryPartner.objects.filter(
+            user_id=request.user.id,
+            status='approved',
+            is_online=True,
+        ).first()
+
+        if dp is None:
+            return Response([], status=http_status.HTTP_200_OK)
+
+        offers = (
+            DeliveryOffer.objects.filter(
+                delivery_partner=request.user,
+                status='pending',
+                expires_at__gt=timezone.now(),
+                order__status__in=['accepted', 'preparing'],
+                order__dp_status='offered',
+                order__delivery_partner__isnull=True,
+            )
+            .select_related('order', 'order__vendor')
+            .order_by('offered_at')
+        )
 
         data = [{
-            'id': str(o.id),
-            'order_number': o.order_number,
-            'shop_name': o.vendor.shop_name,
-            'shop_address': o.vendor.address,
-            'delivery_address': o.delivery_address,
-            'total_amount': str(o.total_amount),
-            'delivery_fee': str(o.delivery_fee),
-            'payment_mode': o.payment_mode,
-            'created_at': o.created_at.isoformat(),
-        } for o in orders]
+            'id': str(offer.order.id),
+            'order_number': offer.order.order_number,
+            'shop_name': offer.order.vendor.shop_name,
+            'shop_address': offer.order.vendor.address,
+            'delivery_address': offer.order.delivery_address,
+            'total_amount': str(offer.order.total_amount),
+            'delivery_fee': str(offer.order.delivery_fee),
+            'payment_mode': offer.order.payment_mode,
+            'created_at': offer.order.created_at.isoformat(),
+        } for offer in offers]
 
         return Response(data, status=http_status.HTTP_200_OK)
 
@@ -54,35 +76,222 @@ class DPOrderAcceptView(APIView):
 
     def post(self, request, order_id):
         if not _is_dp(request):
-            return Response({'error': 'Not a delivery partner account'}, status=http_status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'error': 'Not a delivery partner account'},
+                status=http_status.HTTP_403_FORBIDDEN
+            )
 
-        try:
-            order = Order.objects.get(id=order_id)
-        except Order.DoesNotExist:
-            return Response({'error': 'Order not found'}, status=http_status.HTTP_404_NOT_FOUND)
+        with transaction.atomic():
+            dp = DeliveryPartner.objects.select_for_update().filter(
+                user_id=request.user.id
+            ).first()
 
-        if order.dp_status != 'unassigned':
-            return Response({'error': 'This order has already been taken by another delivery partner'}, status=http_status.HTTP_409_CONFLICT)
+            if dp is None:
+                return Response(
+                    {'error': 'Complete onboarding first'},
+                    status=http_status.HTTP_400_BAD_REQUEST
+                )
 
-        order.delivery_partner = request.user
-        order.dp_status = 'accepted'
-        order.save(update_fields=['delivery_partner', 'dp_status', 'updated_at'])
+            if dp.status != 'approved':
+                return Response(
+                    {'error': 'Your account is not yet approved'},
+                    status=http_status.HTTP_403_FORBIDDEN
+                )
 
-        return Response({'message': 'Order accepted', 'order_id': str(order.id)}, status=http_status.HTTP_200_OK)
+            if not dp.is_online:
+                return Response(
+                    {'error': 'Go online before accepting orders'},
+                    status=http_status.HTTP_403_FORBIDDEN
+                )
+
+            try:
+                order = Order.objects.select_for_update().get(id=order_id)
+            except Order.DoesNotExist:
+                return Response(
+                    {'error': 'Order not found'},
+                    status=http_status.HTTP_404_NOT_FOUND
+                )
+
+            now = timezone.now()
+
+            # Require an active, unexpired offer addressed to this DP.
+            offer = (
+                DeliveryOffer.objects.select_for_update()
+                .filter(
+                    order=order,
+                    delivery_partner=request.user,
+                    status='pending',
+                )
+                .first()
+            )
+
+            if offer is None:
+                return Response(
+                    {'error': 'No pending offer exists for this order'},
+                    status=http_status.HTTP_409_CONFLICT
+                )
+
+            if offer.expires_at <= now:
+                offer.status = 'expired'
+                offer.responded_at = now
+                offer.save(update_fields=['status', 'responded_at'])
+
+                if order.delivery_partner_id is None and order.dp_status == 'offered':
+                    order.dp_status = 'unassigned'
+                    order.save(update_fields=['dp_status', 'updated_at'])
+
+                from orders.dispatch_service import create_next_delivery_offer
+
+                transaction.on_commit(
+                    lambda order_id=order.id: create_next_delivery_offer(order_id)
+                )
+
+                return Response(
+                    {'error': 'This delivery offer has expired'},
+                    status=http_status.HTTP_409_CONFLICT
+                )
+
+            if (
+                order.delivery_partner_id is not None
+                or order.dp_status != 'offered'
+                or order.status not in ['accepted', 'preparing']
+            ):
+                return Response(
+                    {'error': 'This order is no longer available for acceptance'},
+                    status=http_status.HTTP_409_CONFLICT
+                )
+
+            active_delivery_exists = Order.objects.filter(
+                delivery_partner=request.user,
+                dp_status__in=[
+                    'accepted',
+                    'arrived_at_shop',
+                    'picked_up',
+                    'arrived_at_buyer',
+                ],
+            ).exclude(
+                status__in=['cancelled', 'rejected', 'delivered']
+            ).exists()
+
+            if active_delivery_exists:
+                return Response(
+                    {'error': 'Complete your current delivery before accepting another order'},
+                    status=http_status.HTTP_409_CONFLICT
+                )
+
+            order.delivery_partner = request.user
+            order.dp_status = 'accepted'
+            order.save(update_fields=[
+                'delivery_partner',
+                'dp_status',
+                'updated_at'
+            ])
+
+            offer.status = 'accepted'
+            offer.responded_at = timezone.now()
+            offer.save(update_fields=['status', 'responded_at'])
+
+        return Response(
+            {'message': 'Order accepted', 'order_id': str(order.id)},
+            status=http_status.HTTP_200_OK
+        )
 
 
 class DPOrderRejectView(APIView):
     """
     POST /dp/orders/<order_id>/reject/
-    A no-op on the order itself for the basic version — just confirms the DP
-    declined, so the frontend can remove it from that DP's local offer list.
+    Reject the current partner's pending offer and dispatch to the next
+    eligible partner.
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, order_id):
         if not _is_dp(request):
-            return Response({'error': 'Not a delivery partner account'}, status=http_status.HTTP_403_FORBIDDEN)
-        return Response({'message': 'Order declined'}, status=http_status.HTTP_200_OK)
+            return Response(
+                {"error": "Not a delivery partner account"},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
+
+        from orders.models import DeliveryOffer
+        from orders.dispatch_service import create_next_delivery_offer
+
+        with transaction.atomic():
+            try:
+                order = Order.objects.select_for_update().get(pk=order_id)
+            except Order.DoesNotExist:
+                return Response(
+                    {"error": "Order not found"},
+                    status=http_status.HTTP_404_NOT_FOUND,
+                )
+
+            try:
+                offer = DeliveryOffer.objects.select_for_update().get(
+                    order=order,
+                    delivery_partner=request.user,
+                    status="pending",
+                )
+            except DeliveryOffer.DoesNotExist:
+                return Response(
+                    {"error": "No pending offer found for this order"},
+                    status=http_status.HTTP_409_CONFLICT,
+                )
+
+            now = timezone.now()
+
+            if offer.expires_at <= now:
+                if (
+                    order.delivery_partner_id is not None
+                    or order.status not in ["accepted", "preparing"]
+                    or order.dp_status != "offered"
+                ):
+                    return Response(
+                        {"error": "This order is no longer available for dispatch"},
+                        status=http_status.HTTP_409_CONFLICT,
+                    )
+
+                offer.status = "expired"
+                offer.responded_at = now
+                offer.save(update_fields=["status", "responded_at"])
+
+                if order.delivery_partner_id is None and order.dp_status == "offered":
+                    order.dp_status = "unassigned"
+                    order.save(update_fields=["dp_status", "updated_at"])
+
+                expired = True
+            else:
+                if order.delivery_partner_id is not None:
+                    return Response(
+                        {"error": "This order has already been assigned"},
+                        status=http_status.HTTP_409_CONFLICT,
+                    )
+
+                if order.status not in ["accepted", "preparing"] or order.dp_status != "offered":
+                    return Response(
+                        {"error": "This order is no longer available for dispatch"},
+                        status=http_status.HTTP_409_CONFLICT,
+                    )
+
+                offer.status = "rejected"
+                offer.responded_at = now
+                offer.save(update_fields=["status", "responded_at"])
+
+                order.dp_status = "unassigned"
+                order.save(update_fields=["dp_status", "updated_at"])
+                expired = False
+
+        # Dispatch after the current offer has been finalized.
+        create_next_delivery_offer(order.id)
+
+        if expired:
+            return Response(
+                {"error": "Offer expired; the next eligible partner will be considered"},
+                status=http_status.HTTP_409_CONFLICT,
+            )
+
+        return Response(
+            {"message": "Offer rejected; the next eligible partner will be considered"},
+            status=http_status.HTTP_200_OK,
+        )
 
 
 class DPOrderStatusUpdateView(APIView):

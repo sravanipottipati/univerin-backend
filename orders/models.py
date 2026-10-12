@@ -7,27 +7,44 @@ import uuid
 # ── Readable order number like UNI-250401-7823 ────────────────────────────────
 def generate_order_number(vendor=None):
     from datetime import datetime
-    import random, string
+    from django.db import connection
+    from django.utils import timezone
+    import random
+
     date = datetime.now().strftime("%y%m%d")
-    # Get shop initials from vendor
-    if vendor and hasattr(vendor, 'shop_name') and vendor.shop_name:
+
+    if vendor and getattr(vendor, "shop_name", None):
         words = vendor.shop_name.strip().split()
-        initials = ''.join(w[0].upper() for w in words if w)[:3]
+        initials = "".join(w[0].upper() for w in words if w)[:3]
     else:
-        initials = 'UNI'
-    # Get today's order count for this vendor
-    try:
-        from django.utils import timezone
-        today = timezone.now().date()
-        # Count orders for this vendor today
-        today_count = Order.objects.filter(
-            vendor=vendor,
-            created_at__date=today
-        ).count() + 1
-        seq = str(today_count).zfill(3)
-    except Exception:
-        seq = ''.join(random.choices(string.digits, k=3))
-    return f"UNI-{date}-{initials}{seq}" if not Order.objects.filter(order_number=f"UNI-{date}-{initials}{seq}").exists() else f"UNI-{date}-{initials}{seq}{random.randint(1,9)}"
+        initials = "UNI"
+
+    # During a fresh migration, this column may not exist yet.
+    # Inspect the database schema before querying Order.
+    with connection.cursor() as cursor:
+        columns = {
+            column.name
+            for column in connection.introspection.get_table_description(
+                cursor, Order._meta.db_table
+            )
+        } if Order._meta.db_table in connection.introspection.table_names() else set()
+
+    if "order_number" not in columns:
+        return f"UNI-{date}-{initials}{uuid.uuid4().hex[:6].upper()}"
+
+    today = timezone.now().date()
+    today_count = Order.objects.filter(
+        vendor=vendor,
+        created_at__date=today
+    ).count() + 1
+
+    seq = str(today_count).zfill(3)
+    order_number = f"UNI-{date}-{initials}{seq}"
+
+    if Order.objects.filter(order_number=order_number).exists():
+        order_number = f"UNI-{date}-{initials}{uuid.uuid4().hex[:6].upper()}"
+
+    return order_number
 
 
 class Order(models.Model):
@@ -228,3 +245,57 @@ class Refund(models.Model):
 
     def __str__(self):
         return f"Refund for {self.order.order_number} - {self.status}"
+
+
+class DeliveryOffer(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('expired', 'Expired'),
+        ('cancelled', 'Cancelled'),
+    )
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='delivery_offers',
+    )
+
+    delivery_partner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='delivery_offers',
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+    )
+
+    offered_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['offered_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['order'],
+                condition=models.Q(status='pending'),
+                name='unique_pending_offer_per_order',
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"Offer {self.id} - Order {self.order.order_number} "
+            f"- DP {self.delivery_partner_id} - {self.status}"
+        )

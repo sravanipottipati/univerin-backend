@@ -123,6 +123,28 @@ class DPLocationUpdateView(APIView):
         if latitude is None or longitude is None:
             return Response({'error': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
 
+        import math
+
+        try:
+            latitude = float(latitude)
+            longitude = float(longitude)
+        except (TypeError, ValueError, OverflowError):
+            return Response(
+                {'error': 'Latitude and longitude must be valid numbers'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if (
+            not math.isfinite(latitude)
+            or not math.isfinite(longitude)
+            or not -90 <= latitude <= 90
+            or not -180 <= longitude <= 180
+        ):
+            return Response(
+                {'error': 'Latitude or longitude is outside the valid range'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         from django.utils import timezone
         dp.current_latitude = latitude
         dp.current_longitude = longitude

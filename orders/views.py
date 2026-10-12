@@ -7,6 +7,7 @@ from .models import Order, OrderItem, Notification, Cart
 from .serializers import PlaceOrderSerializer, OrderSerializer
 from vendors.models import Vendor, Product
 from wallet.models import WalletTransaction
+from orders.dispatch_service import create_next_delivery_offer
 from django.utils import timezone
 
 
@@ -241,8 +242,27 @@ class UpdateOrderStatusView(APIView):
                     status='pending',
                     description=f'Platform fee for order {order.id}'
                 )
+            was_first_acceptance = (
+                new_status == 'accepted' and order.status == 'placed'
+            )
+
             order.status = new_status
             order.save()
+
+            # Start dispatch only on the first Seller acceptance.
+            if was_first_acceptance:
+                try:
+                    create_next_delivery_offer(order.id)
+                except Exception:
+                    # Preserve the existing Seller response if dispatch
+                    # encounters an error. Dispatch retry handling will
+                    # be implemented separately.
+                    import logging
+                    logging.getLogger(__name__).exception(
+                        "Failed to initiate DP dispatch for order %s",
+                        order.id,
+                    )
+
             # Notify buyer of status change
             STATUS_MESSAGES = {
                 'accepted':   ('Order Accepted ✅',   f'{vendor.shop_name} accepted your order!'),
