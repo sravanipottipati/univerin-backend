@@ -49,10 +49,10 @@ class User(AbstractBaseUser):
         return f"{self.full_name} ({self.phone_number})"
 
     def has_perm(self, perm, obj=None):
-        return True
+        return self.is_active and self.is_staff and self.is_admin
 
     def has_module_perms(self, app_label):
-        return True
+        return self.is_active and self.is_staff and self.is_admin
 
 
 class Address(models.Model):

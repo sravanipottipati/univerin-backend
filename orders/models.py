@@ -98,6 +98,7 @@ class Order(models.Model):
     delivery_partner  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deliveries')
     dp_status         = models.CharField(max_length=20, choices=DP_STATUS_CHOICES, default='unassigned')
     delivery_otp      = models.CharField(max_length=6, blank=True, null=True)
+    delivery_otp_attempts = models.PositiveSmallIntegerField(default=0)
 
     def __str__(self):
         return f"{self.order_number} — {self.buyer.full_name} from {self.vendor.shop_name}"

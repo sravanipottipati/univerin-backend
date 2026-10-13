@@ -1,4 +1,4 @@
-import random
+import secrets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -313,39 +313,48 @@ class DPOrderStatusUpdateView(APIView):
         if not _is_dp(request):
             return Response({'error': 'Not a delivery partner account'}, status=http_status.HTTP_403_FORBIDDEN)
 
-        try:
-            order = Order.objects.get(id=order_id, delivery_partner=request.user)
-        except Order.DoesNotExist:
-            return Response({'error': 'Order not found or not assigned to you'}, status=http_status.HTTP_404_NOT_FOUND)
-
         new_status = request.data.get('dp_status')
-        expected_next = self.VALID_TRANSITIONS.get(order.dp_status)
 
-        if new_status != expected_next:
-            return Response(
-                {'error': f'Invalid status transition from {order.dp_status} to {new_status}'},
-                status=http_status.HTTP_400_BAD_REQUEST
-            )
-
-        order.dp_status = new_status
-
-        # Generate delivery OTP the moment the order is picked up
-        if new_status == 'picked_up':
-            order.delivery_otp = str(random.randint(100000, 999999))
-            order.status = 'dispatched'
-
-        order.save()
-
-        if new_status == 'picked_up':
-            transaction.on_commit(
-                lambda: create_notification(
-                    user=order.buyer,
-                    notif_type='order_dispatched',
-                    title='Out for Delivery 🛵',
-                    message='Your order has been picked up! Your delivery OTP is available in the app.',
-                    order=order,
+        with transaction.atomic():
+            try:
+                order = Order.objects.select_for_update().get(
+                    id=order_id,
+                    delivery_partner=request.user,
                 )
-            )
+            except Order.DoesNotExist:
+                return Response(
+                    {'error': 'Order not found or not assigned to you'},
+                    status=http_status.HTTP_404_NOT_FOUND,
+                )
+
+            expected_next = self.VALID_TRANSITIONS.get(order.dp_status)
+
+            if new_status != expected_next:
+                return Response(
+                    {'error': f'Invalid status transition from {order.dp_status} to {new_status}'},
+                    status=http_status.HTTP_400_BAD_REQUEST,
+                )
+
+            order.dp_status = new_status
+
+            # Generate delivery OTP when the order is picked up.
+            if new_status == 'picked_up':
+                order.delivery_otp = str(secrets.randbelow(900000) + 100000)
+                order.delivery_otp_attempts = 0
+                order.status = 'dispatched'
+
+            order.save()
+
+            if new_status == 'picked_up':
+                transaction.on_commit(
+                    lambda: create_notification(
+                        user=order.buyer,
+                        notif_type='order_dispatched',
+                        title='Out for Delivery 🛵',
+                        message='Your order has been picked up! Your delivery OTP is available in the app.',
+                        order=order,
+                    )
+                )
 
         return Response({
             'message': 'Status updated',
@@ -362,37 +371,77 @@ class DPVerifyDeliveryOTPView(APIView):
 
     def post(self, request, order_id):
         if not _is_dp(request):
-            return Response({'error': 'Not a delivery partner account'}, status=http_status.HTTP_403_FORBIDDEN)
-
-        try:
-            order = Order.objects.get(id=order_id, delivery_partner=request.user)
-        except Order.DoesNotExist:
-            return Response({'error': 'Order not found or not assigned to you'}, status=http_status.HTTP_404_NOT_FOUND)
-
-        if order.dp_status != 'arrived_at_buyer':
-            return Response({'error': 'Order is not ready for delivery confirmation'}, status=http_status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Not a delivery partner account'},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
 
         raw_otp = request.data.get('otp')
         entered_otp = str(raw_otp).strip() if raw_otp is not None else ''
-        if entered_otp != order.delivery_otp:
-            return Response({'error': 'Incorrect OTP. Please check with the customer.'}, status=http_status.HTTP_400_BAD_REQUEST)
 
-        order.dp_status = 'delivered'
-        order.status = 'delivered'
-        order.delivery_otp = None
-        order.save()
+        with transaction.atomic():
+            try:
+                order = Order.objects.select_for_update().get(
+                    id=order_id,
+                    delivery_partner=request.user,
+                )
+            except Order.DoesNotExist:
+                return Response(
+                    {'error': 'Order not found or not assigned to you'},
+                    status=http_status.HTTP_404_NOT_FOUND,
+                )
 
-        transaction.on_commit(
-            lambda: create_notification(
-                user=order.buyer,
-                notif_type='order_delivered',
-                title='Order Delivered 🎉',
-                message='Your order has been delivered successfully. Enjoy!',
-                order=order,
+            if order.dp_status != 'arrived_at_buyer':
+                return Response(
+                    {'error': 'Order is not ready for delivery confirmation'},
+                    status=http_status.HTTP_400_BAD_REQUEST,
+                )
+
+            if order.delivery_otp_attempts >= 5:
+                return Response(
+                    {'error': 'Too many incorrect OTP attempts. Contact support.'},
+                    status=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+
+            if not order.delivery_otp or not (
+                len(order.delivery_otp) == 6 and order.delivery_otp.isdigit()
+            ):
+                return Response(
+                    {'error': 'Delivery OTP is unavailable. Contact support.'},
+                    status=http_status.HTTP_400_BAD_REQUEST,
+                )
+
+            if entered_otp != order.delivery_otp:
+                order.delivery_otp_attempts += 1
+                order.save(update_fields=['delivery_otp_attempts'])
+                return Response(
+                    {'error': 'Incorrect OTP. Please check with the customer.'},
+                    status=http_status.HTTP_400_BAD_REQUEST,
+                )
+
+            order.dp_status = 'delivered'
+            order.status = 'delivered'
+            order.delivery_otp = None
+            order.delivery_otp_attempts = 0
+            order.save(update_fields=[
+                'dp_status', 'status', 'delivery_otp',
+                'delivery_otp_attempts',
+            ])
+
+            transaction.on_commit(
+                lambda: create_notification(
+                    user=order.buyer,
+                    notif_type='order_delivered',
+                    title='Order Delivered 🎉',
+                    message='Your order has been delivered successfully. Enjoy!',
+                    order=order,
+                )
             )
-        )
 
-        return Response({'message': 'Delivery confirmed successfully'}, status=http_status.HTTP_200_OK)
+        return Response(
+            {'message': 'Delivery confirmed successfully'},
+            status=http_status.HTTP_200_OK,
+        )
 
 
 class DPMyActiveOrderView(APIView):

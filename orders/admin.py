@@ -11,8 +11,55 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter   = ['status', 'dp_status', 'payment_mode', 'created_at']
     search_fields = ['order_number', 'buyer__full_name', 'vendor__shop_name']
     ordering      = ['-created_at']
-    list_editable = ['status', 'delivery_partner', 'dp_status']
+    list_editable = []
     autocomplete_fields = ['delivery_partner']
+    readonly_fields = ['delivery_otp', 'delivery_otp_attempts', 'status', 'dp_status', 'delivery_partner']
+
+    actions = ['reset_locked_delivery_otp']
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if not (request.user.is_authenticated and request.user.is_active and request.user.is_admin and request.user.is_staff):
+            actions.pop('reset_locked_delivery_otp', None)
+        return actions
+
+    @admin.action(description="Generate new OTP for locked deliveries")
+    def reset_locked_delivery_otp(self, request, queryset):
+        import secrets
+        from django.contrib import messages
+        from django.db import transaction
+
+        if not (request.user.is_authenticated and request.user.is_active and request.user.is_admin and request.user.is_staff):
+            self.message_user(
+                request,
+                "Only authorized administrators can reset delivery OTPs.",
+                level=messages.ERROR,
+            )
+            return
+
+        reset_count = 0
+
+        with transaction.atomic():
+            orders = queryset.select_for_update().filter(
+                dp_status='arrived_at_buyer',
+                delivery_otp_attempts__gte=5,
+                delivery_partner__isnull=False,
+            )
+
+            for order in orders:
+                order.delivery_otp = str(secrets.randbelow(900000) + 100000)
+                order.delivery_otp_attempts = 0
+                order.save(update_fields=[
+                    'delivery_otp',
+                    'delivery_otp_attempts',
+                ])
+                reset_count += 1
+
+        self.message_user(
+            request,
+            f"New delivery OTP generated for {reset_count} locked order(s).",
+            level=messages.SUCCESS,
+        )
 
     def download_invoice(self, obj):
         return format_html(

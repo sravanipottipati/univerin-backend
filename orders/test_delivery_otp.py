@@ -113,7 +113,7 @@ class DeliveryOTPTests(TestCase):
         )
         force_authenticate(request, user=self.dp)
 
-        with patch("orders.dp_views.random.randint", return_value=654321):
+        with patch("orders.dp_views.secrets.randbelow", return_value=554321):
             response = DPOrderStatusUpdateView.as_view()(
                 request, order_id=self.order.id
             )
@@ -122,4 +122,56 @@ class DeliveryOTPTests(TestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.delivery_otp, "654321")
         self.assertEqual(self.order.dp_status, "picked_up")
+        self.assertEqual(self.order.status, "dispatched")
+
+
+    def test_duplicate_pickup_does_not_regenerate_otp(self):
+        self.order.dp_status = "arrived_at_shop"
+        self.order.delivery_otp = None
+        self.order.status = "preparing"
+        self.order.save()
+
+        def pickup():
+            request = self.factory.post(
+                f"/dp/orders/{self.order.id}/status/",
+                {"dp_status": "picked_up"},
+                format="json",
+            )
+            force_authenticate(request, user=self.dp)
+            return DPOrderStatusUpdateView.as_view()(
+                request, order_id=self.order.id
+            )
+
+        with patch("orders.dp_views.secrets.randbelow", return_value=111111):
+            first_response = pickup()
+
+        self.assertEqual(first_response.status_code, 200)
+
+        self.order.refresh_from_db()
+        original_otp = self.order.delivery_otp
+
+        with patch("orders.dp_views.secrets.randbelow") as generate_otp:
+            second_response = pickup()
+
+        self.assertEqual(second_response.status_code, 400)
+        generate_otp.assert_not_called()
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.delivery_otp, original_otp)
+        self.assertEqual(self.order.dp_status, "picked_up")
+
+    def test_otp_locked_after_five_incorrect_attempts(self):
+        for attempt in range(5):
+            response = self.verify("999999")
+            self.assertEqual(response.status_code, 400)
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.delivery_otp_attempts, 5)
+        self.assertEqual(self.order.dp_status, "arrived_at_buyer")
+
+        response = self.verify("123456")
+        self.assertEqual(response.status_code, 429)
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.dp_status, "arrived_at_buyer")
         self.assertEqual(self.order.status, "dispatched")
