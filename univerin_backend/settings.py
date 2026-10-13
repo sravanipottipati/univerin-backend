@@ -36,7 +36,12 @@ LOGGING = {
         },
     },
 }
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    'api.univerin.in',
+    'web-production-a8b49.up.railway.app',
+    'localhost',
+    '127.0.0.1',
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
