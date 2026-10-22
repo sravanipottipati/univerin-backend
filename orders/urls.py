@@ -1,3 +1,4 @@
+from .views import VendorRequestDeliveryView
 from django.urls import path
 from .views import RefundRequestView, AdminRefundView
 from .payment_views import create_payment_order, verify_payment, payment_failed, create_razorpay_only, place_order_after_payment
@@ -15,6 +16,7 @@ urlpatterns = [
     path('mine/',                                BuyerOrdersView.as_view(),          name='buyer-orders'),
     path('vendor/',                              VendorOrdersView.as_view(),         name='vendor-orders'),
     path('<uuid:order_id>/',                     OrderDetailView.as_view(),          name='order-detail'),
+    path('<uuid:order_id>/request-delivery/', VendorRequestDeliveryView.as_view(), name='vendor-request-delivery'),
     path('<uuid:order_id>/status/',              UpdateOrderStatusView.as_view(),    name='update-status'),
     path('<uuid:order_id>/return/',              submit_return,                      name='submit-return'),
     path('<uuid:order_id>/refund/',             RefundRequestView.as_view(),        name='refund-request'),

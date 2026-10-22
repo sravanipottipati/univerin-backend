@@ -335,3 +335,62 @@ class DeliveryOfferExpirationIntegrationTests(DeliveryOfferConstraintTests):
 
         order.refresh_from_db()
         self.assertEqual(order.dp_status, "offered")
+
+
+class SinglePartnerExpiredOfferRetryTests(DeliveryOfferConstraintTests):
+    def test_expired_offer_retries_only_available_partner(self):
+        from django.contrib.auth import get_user_model
+        from orders.models import Order
+        from orders.dispatch_service import (
+            create_next_delivery_offer,
+            expire_delivery_offer,
+        )
+
+        # Only the first Delivery Partner is available.
+        for dp in self.partners[1:]:
+            dp.is_online = False
+            dp.save(update_fields=["is_online"])
+
+        buyer = get_user_model().objects.create_user(
+            phone_number="9000000799",
+            full_name="Single Partner Retry Buyer",
+            user_type="buyer",
+        )
+
+        order = Order.objects.create(
+            buyer=buyer,
+            vendor=self.vendor,
+            status="accepted",
+            total_amount=250,
+            delivery_address="Test Delivery Address",
+        )
+
+        first_offer = create_next_delivery_offer(order.id)
+        self.assertIsNotNone(first_offer)
+
+        DeliveryOffer.objects.filter(pk=first_offer.pk).update(
+            expires_at=timezone.now() - timedelta(seconds=1)
+        )
+
+        self.assertTrue(expire_delivery_offer(first_offer.id))
+
+        first_offer.refresh_from_db()
+        self.assertEqual(first_offer.status, "expired")
+
+        second_offer = DeliveryOffer.objects.get(
+            order=order,
+            status="pending",
+        )
+
+        self.assertNotEqual(second_offer.id, first_offer.id)
+        self.assertEqual(
+            second_offer.delivery_partner_id,
+            first_offer.delivery_partner_id,
+        )
+        self.assertEqual(
+            DeliveryOffer.objects.filter(
+                order=order,
+                status="pending",
+            ).count(),
+            1,
+        )

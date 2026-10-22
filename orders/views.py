@@ -7,7 +7,7 @@ from .models import Order, OrderItem, Notification, Cart
 from .serializers import PlaceOrderSerializer, OrderSerializer
 from vendors.models import Vendor, Product
 from wallet.models import WalletTransaction
-from orders.dispatch_service import create_next_delivery_offer
+from orders.dispatch_service import create_next_delivery_offer, expire_delivery_offer
 from django.utils import timezone
 
 
@@ -211,6 +211,86 @@ class VendorOrdersView(APIView):
         return Response({'count': orders.count(), 'orders': serializer.data})
 
 
+
+class VendorRequestDeliveryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+        if request.user.user_type != "vendor":
+            return Response({"error": "Seller access required"}, status=403)
+
+        try:
+            vendor = request.user.vendor
+        except Exception:
+            return Response({"error": "Seller shop not found"}, status=403)
+
+        try:
+            order = Order.objects.get(id=order_id, vendor=vendor)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found"}, status=404)
+
+        if order.status not in ["accepted", "preparing"]:
+            return Response(
+                {"error": "Order must be accepted or preparing"},
+                status=400,
+            )
+
+        if order.delivery_partner_id is not None:
+            return Response(
+                {"error": "Delivery Partner already assigned"},
+                status=400,
+            )
+
+        if order.dp_status not in ["unassigned", "offered"]:
+            return Response(
+                {"error": "Order is not eligible for dispatch"},
+                status=400,
+            )
+
+        from .models import DeliveryOffer
+
+        expired_offer_ids = list(
+            DeliveryOffer.objects.filter(
+                order=order,
+                status="pending",
+                expires_at__lte=timezone.now(),
+            ).values_list("id", flat=True)
+        )
+
+        for offer_id in expired_offer_ids:
+            expire_delivery_offer(offer_id)
+
+        order.refresh_from_db()
+
+        if DeliveryOffer.objects.filter(order=order, status="pending").exists():
+            return Response(
+                {"message": "A delivery offer is already pending"},
+                status=200,
+            )
+
+        try:
+            offer = create_next_delivery_offer(order.id)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Seller dispatch request failed for order %s", order.id
+            )
+            return Response(
+                {"error": "Unable to request delivery right now"},
+                status=500,
+            )
+
+        if offer is None:
+            return Response(
+                {"message": "No eligible Delivery Partners nearby. Please retry shortly."},
+                status=200,
+            )
+
+        return Response(
+            {"message": "Delivery offer sent successfully", "offer_id": str(offer.id)},
+            status=200,
+        )
+
 class UpdateOrderStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -229,7 +309,7 @@ class UpdateOrderStatusView(APIView):
                 return Response({'error': 'Not a vendor'}, status=400)
             if order.vendor != vendor:
                 return Response({'error': 'This is not your order'}, status=403)
-            allowed = ['accepted', 'rejected', 'preparing', 'dispatched', 'delivered']
+            allowed = ['accepted', 'rejected', 'preparing']
             if new_status not in allowed:
                 return Response({'error': f'Invalid status. Choose from: {allowed}'}, status=400)
             # Record platform fee when accepted

@@ -41,16 +41,32 @@ def create_next_delivery_offer(order_id):
 
         candidates = find_nearby_delivery_partners(order.vendor)
 
-        # Do not offer the same order to the same DP again.
+        # Prefer partners who have never received this order.
+        # Never retry a rejected or accepted offer.
+        blocked_ids = set(
+            DeliveryOffer.objects.filter(
+                order=order,
+                status__in=["rejected", "accepted", "pending"],
+            ).values_list("delivery_partner_id", flat=True)
+        )
         previously_offered_ids = set(
             DeliveryOffer.objects.filter(order=order)
             .values_list("delivery_partner_id", flat=True)
         )
 
-        for dp, distance_km in candidates:
-            if dp.user_id in previously_offered_ids:
-                continue
+        new_candidates = [
+            (dp, distance_km)
+            for dp, distance_km in candidates
+            if dp.user_id not in previously_offered_ids
+        ]
+        expired_candidates = [
+            (dp, distance_km)
+            for dp, distance_km in candidates
+            if dp.user_id in previously_offered_ids
+            and dp.user_id not in blocked_ids
+        ]
 
+        for dp, distance_km in new_candidates + expired_candidates:
             offer = DeliveryOffer.objects.create(
                 order=order,
                 delivery_partner=dp.user,
@@ -138,3 +154,33 @@ def expire_due_delivery_offers():
             expired_count += 1
 
     return expired_count
+
+
+def retry_recent_unassigned_orders(max_age_minutes=30):
+    """
+    Retry dispatch for recently created, unassigned orders.
+
+    Existing dispatch safeguards prevent duplicate pending offers
+    and repeated offers to the same delivery partner.
+    """
+    cutoff = timezone.now() - timedelta(minutes=max_age_minutes)
+
+    order_ids = list(
+        Order.objects.filter(
+            status__in=["accepted", "preparing"],
+            dp_status="unassigned",
+            delivery_partner__isnull=True,
+            created_at__gte=cutoff,
+        )
+        .order_by("created_at")
+        .values_list("id", flat=True)
+    )
+
+    created_count = 0
+
+    for order_id in order_ids:
+        offer = create_next_delivery_offer(order_id)
+        if offer is not None:
+            created_count += 1
+
+    return created_count

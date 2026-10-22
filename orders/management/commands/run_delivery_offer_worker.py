@@ -26,11 +26,10 @@ class Command(BaseCommand):
                             f"Expired {expired_count} delivery offer(s)."
                         )
 
-                except Exception:
+                except Exception as exc:
                     self.stderr.write(
-                        "Error processing expired delivery offers."
+                        f"Error processing expired delivery offers: {exc}"
                     )
-                    raise
 
                 finally:
                     close_old_connections()

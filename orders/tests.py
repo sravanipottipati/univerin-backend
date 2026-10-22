@@ -105,3 +105,20 @@ class SellerAcceptanceDispatchTests(TestCase):
             WalletTransaction.objects.filter(order=self.order).count(),
             1,
         )
+
+    def test_seller_cannot_bypass_delivery_partner_workflow(self):
+        for status in ("dispatched", "delivered"):
+            with self.subTest(status=status):
+                response = self.update_status(status)
+
+                self.assertEqual(response.status_code, 400)
+
+                self.order.refresh_from_db()
+                self.assertEqual(self.order.status, "placed")
+
+                self.assertFalse(
+                    Notification.objects.filter(
+                        order=self.order,
+                        type=f"order_{status}",
+                    ).exists()
+                )

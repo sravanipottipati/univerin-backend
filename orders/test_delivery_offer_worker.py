@@ -44,3 +44,39 @@ class DeliveryOfferWorkerTests(SimpleTestCase):
             "Delivery offer expiration worker stopped.",
             output.getvalue(),
         )
+
+    @patch(
+        "orders.management.commands.run_delivery_offer_worker.time.sleep",
+        side_effect=KeyboardInterrupt,
+    )
+    @patch(
+        "orders.management.commands.run_delivery_offer_worker.close_old_connections"
+    )
+    @patch(
+        "orders.management.commands.run_delivery_offer_worker.expire_due_delivery_offers",
+        side_effect=Exception("Temporary database connection failure"),
+    )
+    def test_worker_recovers_from_database_error(
+        self, mock_expire, mock_close, mock_sleep
+    ):
+        output = StringIO()
+        errors = StringIO()
+
+        call_command(
+            "run_delivery_offer_worker",
+            stdout=output,
+            stderr=errors,
+        )
+
+        mock_expire.assert_called_once_with()
+        mock_sleep.assert_called_once_with(5)
+        self.assertEqual(mock_close.call_count, 2)
+
+        self.assertIn(
+            "Temporary database connection failure",
+            errors.getvalue(),
+        )
+        self.assertIn(
+            "Delivery offer expiration worker stopped.",
+            output.getvalue(),
+        )
