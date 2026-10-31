@@ -114,6 +114,7 @@ def process_job(job_id):
         "title": job.title,
         "body": job.message,
         "sound": "default",
+        "channelId": "default",
         "data": job.payload or {},
     }
 
