@@ -131,6 +131,7 @@ class Notification(models.Model):
         ('new_order',        'New Order'),
         ('delivery_offer',   'New Delivery Offer'),
         ('settlement',       'Settlement'),
+        ('welcome',          'Welcome'),
     )
 
     id         = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -372,6 +373,14 @@ class PushNotificationJob(models.Model):
                 fields=['delivery_offer'],
                 condition=models.Q(delivery_offer__isnull=False),
                 name='unique_push_job_per_delivery_offer',
+            ),
+            models.UniqueConstraint(
+                fields=['notification'],
+                condition=models.Q(
+                    notification__isnull=False,
+                    payload__type='welcome',
+                ),
+                name='unique_welcome_push_per_notification',
             ),
         ]
 

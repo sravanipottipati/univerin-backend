@@ -23,6 +23,8 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user   = serializer.save()
+            from .welcome_notifications import create_welcome_notification
+            create_welcome_notification(user)
             tokens = get_tokens_for_user(user)
             return Response({
                 'message': 'Registration successful',
@@ -151,6 +153,10 @@ def verify_register_otp(request):
         user = User.objects.get(phone_number=phone_number)
     except User.DoesNotExist:
         return Response({'error': 'No account found'}, status=404)
+    if user.is_active:
+        return Response({
+            'error': 'This account is already registered. Please login instead.'
+        }, status=400)
     from .models import PasswordResetOTP
     try:
         otp_record = PasswordResetOTP.objects.filter(
@@ -162,6 +168,8 @@ def verify_register_otp(request):
         return Response({'error': 'OTP has expired. Please request a new one.'}, status=400)
     otp_record.is_used = True
     otp_record.save()
+    # Create welcome notification only on first activation.
+    first_activation = not user.is_active
     # Activate user
     user.is_active = True
     if full_name:
@@ -169,6 +177,9 @@ def verify_register_otp(request):
     user.user_type = user_type
     user.set_unusable_password()
     user.save()
+    if first_activation:
+        from .welcome_notifications import create_welcome_notification
+        create_welcome_notification(user)
     tokens = get_tokens_for_user(user)
     return Response({
         'message': 'Registration successful',
@@ -614,6 +625,32 @@ def save_push_token(request):
     token = request.data.get('push_token', '').strip()
     if not token:
         return Response({'error': 'push_token is required'}, status=400)
-    request.user.fcm_token = token
-    request.user.save()
+    from django.db import transaction
+    from orders.models import Notification, PushNotificationJob
+    from orders.push_service import queue_push_notification
+
+    with transaction.atomic():
+        user = type(request.user).objects.select_for_update().get(
+            pk=request.user.pk
+        )
+        user.fcm_token = token
+        user.save(update_fields=['fcm_token'])
+
+        welcome = Notification.objects.filter(
+            user=user,
+            type='welcome',
+        ).order_by('created_at').first()
+
+        if welcome and not PushNotificationJob.objects.filter(
+            notification=welcome,
+            payload__type='welcome',
+        ).exists():
+            queue_push_notification(
+                user=user,
+                title=welcome.title,
+                message=welcome.message,
+                notification=welcome,
+                payload={'type': 'welcome'},
+            )
+
     return Response({'message': 'Push token saved successfully'})
