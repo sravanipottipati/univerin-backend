@@ -165,6 +165,29 @@ def place_order_after_payment(request):
         if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature, order_data]):
             return Response({'error': 'Missing payment or order details'}, status=400)
 
+        # Validate optional delivery coordinates
+        from rest_framework import serializers
+
+        class DeliveryCoordinatesSerializer(serializers.Serializer):
+            delivery_latitude = serializers.FloatField(
+                required=False, min_value=-90, max_value=90
+            )
+            delivery_longitude = serializers.FloatField(
+                required=False, min_value=-180, max_value=180
+            )
+
+            def validate(self, attrs):
+                if ('delivery_latitude' in attrs) != ('delivery_longitude' in attrs):
+                    raise serializers.ValidationError(
+                        'Both delivery latitude and longitude are required together.'
+                    )
+                return attrs
+
+        coordinates = DeliveryCoordinatesSerializer(data=order_data)
+        if not coordinates.is_valid():
+            return Response({'error': coordinates.errors}, status=400)
+        delivery_coordinates = coordinates.validated_data
+
         # Verify Razorpay signature first
         key_secret = os.environ.get('RAZORPAY_KEY_SECRET', '')
         message    = f'{razorpay_order_id}|{razorpay_payment_id}'
@@ -251,6 +274,8 @@ def place_order_after_payment(request):
             tcs_amount=tcs_amount,
             total_amount=grand_total,
             delivery_address=order_data['delivery_address'],
+            delivery_latitude=delivery_coordinates.get('delivery_latitude'),
+            delivery_longitude=delivery_coordinates.get('delivery_longitude'),
             instructions=order_data.get('notes', ''),
             payment_mode='online',
             payment_status='paid',

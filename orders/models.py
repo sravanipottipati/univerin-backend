@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django.db import models
 from users.models import User
 from vendors.models import Vendor, Product
@@ -77,6 +78,8 @@ class Order(models.Model):
     tcs_amount       = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     subtotal         = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     delivery_address = models.TextField()
+    delivery_latitude = models.FloatField(null=True, blank=True)
+    delivery_longitude = models.FloatField(null=True, blank=True)
     instructions     = models.TextField(blank=True, null=True)
     payment_mode          = models.CharField(max_length=10, choices=PAYMENT_CHOICES, default='cod')
     payment_status        = models.CharField(max_length=20, default='pending')
@@ -126,6 +129,7 @@ class Notification(models.Model):
         ('order_delivered',  'Order Delivered'),
         ('order_cancelled',  'Order Cancelled'),
         ('new_order',        'New Order'),
+        ('delivery_offer',   'New Delivery Offer'),
         ('settlement',       'Settlement'),
     )
 
@@ -300,3 +304,76 @@ class DeliveryOffer(models.Model):
             f"Offer {self.id} - Order {self.order.order_number} "
             f"- DP {self.delivery_partner_id} - {self.status}"
         )
+
+
+class PushNotificationJob(models.Model):
+    """Persistent queue for asynchronous Expo push notifications."""
+
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('sent', 'Sent to Expo'),
+        ('delivered', 'Delivered'),
+        ('failed', 'Failed'),
+    )
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='push_notification_jobs',
+    )
+    notification = models.ForeignKey(
+        'Notification',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='push_jobs',
+    )
+    delivery_offer = models.ForeignKey(
+        'DeliveryOffer',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='push_jobs',
+    )
+    push_token = models.TextField()
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    payload = models.JSONField(default=dict, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        db_index=True,
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(
+        default=timezone.now,
+        db_index=True,
+    )
+    expo_ticket_id = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+    )
+    last_error = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['delivery_offer'],
+                condition=models.Q(delivery_offer__isnull=False),
+                name='unique_push_job_per_delivery_offer',
+            ),
+        ]
+
+    def __str__(self):
+        return f"Push {self.id} - {self.status}"

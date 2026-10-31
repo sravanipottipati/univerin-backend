@@ -77,6 +77,30 @@ def create_next_delivery_offer(order_id):
             order.dp_status = "offered"
             order.save(update_fields=["dp_status", "updated_at"])
 
+            # Create an offer-specific notification and push job.
+            # Both database records commit with the delivery offer.
+            from orders.models import Notification
+            from orders.push_service import queue_push_notification
+
+            notification = Notification.objects.create(
+                user=dp.user,
+                type="delivery_offer",
+                title="New Delivery Request",
+                message=(
+                    "A new delivery request is available. "
+                    "Open UNIVERIN to review it."
+                ),
+                order=order,
+            )
+
+            queue_push_notification(
+                user=dp.user,
+                title=notification.title,
+                message=notification.message,
+                notification=notification,
+                delivery_offer=offer,
+            )
+
             return offer
 
         return None

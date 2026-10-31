@@ -27,6 +27,12 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class PlaceOrderSerializer(serializers.Serializer):
     vendor_id = serializers.UUIDField()
     delivery_address = serializers.CharField()
+    delivery_latitude = serializers.FloatField(
+        required=False, min_value=-90, max_value=90
+    )
+    delivery_longitude = serializers.FloatField(
+        required=False, min_value=-180, max_value=180
+    )
     instructions = serializers.CharField(required=False, allow_blank=True)
     payment_mode = serializers.ChoiceField(choices=['cod', 'online'], default='cod')
     delivery_fee = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, default=0)
@@ -34,6 +40,17 @@ class PlaceOrderSerializer(serializers.Serializer):
     items = serializers.ListField(
         child=serializers.DictField()
     )
+    def validate(self, attrs):
+        has_lat = 'delivery_latitude' in attrs
+        has_lng = 'delivery_longitude' in attrs
+
+        if has_lat != has_lng:
+            raise serializers.ValidationError({
+                'delivery_location': 'Both latitude and longitude are required together.'
+            })
+
+        return attrs
+
     def validate_items(self, items):
         if not items:
             raise serializers.ValidationError("Order must have at least one item")

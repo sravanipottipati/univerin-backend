@@ -59,7 +59,22 @@ class DPAvailableOrdersView(APIView):
             'order_number': offer.order.order_number,
             'shop_name': offer.order.vendor.shop_name,
             'shop_address': offer.order.vendor.address,
+            'shop_latitude': offer.order.vendor.latitude,
+            'shop_longitude': offer.order.vendor.longitude,
             'delivery_address': offer.order.delivery_address,
+            'delivery_latitude': offer.order.delivery_latitude,
+            'delivery_longitude': offer.order.delivery_longitude,
+            'items': [
+                {
+                    'product_name': (
+                        f"{item.product.name} ({item.variant.name})"
+                        if item.variant else item.product.name
+                    ),
+                    'quantity': item.quantity,
+                    'price': str(item.price),
+                }
+                for item in offer.order.items.select_related('product', 'variant').all()
+            ],
             'total_amount': str(offer.order.total_amount),
             'delivery_fee': str(offer.order.delivery_fee),
             'payment_mode': offer.order.payment_mode,
@@ -468,7 +483,22 @@ class DPMyActiveOrderView(APIView):
             'order_number': order.order_number,
             'shop_name': order.vendor.shop_name,
             'shop_address': order.vendor.address,
+            'shop_latitude': order.vendor.latitude,
+            'shop_longitude': order.vendor.longitude,
             'delivery_address': order.delivery_address,
+            'delivery_latitude': order.delivery_latitude,
+            'delivery_longitude': order.delivery_longitude,
+            'items': [
+                {
+                    'product_name': (
+                        f"{item.product.name} ({item.variant.name})"
+                        if item.variant else item.product.name
+                    ),
+                    'quantity': item.quantity,
+                    'price': str(item.price),
+                }
+                for item in order.items.select_related('product', 'variant').all()
+            ],
             'dp_status': order.dp_status,
             'total_amount': str(order.total_amount),
             'delivery_fee': str(order.delivery_fee),

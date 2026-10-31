@@ -36,26 +36,50 @@ def send_push_notification(push_token, title, message, data=None):
 
 
 def create_notification(user, notif_type, title, message, order=None):
+    """Create an in-app notification and queue its push notification."""
+    from django.db import transaction
+    from orders.push_service import queue_push_notification
+
     try:
-        # Don't create duplicate notifications for same order + type
-        if order and Notification.objects.filter(user=user, type=notif_type, order=order).exists():
-            return
-        Notification.objects.create(
-            user=user,
-            type=notif_type,
-            title=title,
-            message=message,
-            order=order,
-        )
-        # Also send push notification to user's phone
-        push_token = getattr(user, 'fcm_token', None)
-        if push_token:
-            send_push_notification(
-                push_token, title, message,
-                data={'order_id': str(order.id) if order else None, 'type': notif_type}
+        with transaction.atomic():
+            # Preserve existing deduplication for order notifications.
+            if order and Notification.objects.filter(
+                user=user,
+                type=notif_type,
+                order=order,
+            ).exists():
+                return
+
+            notification = Notification.objects.create(
+                user=user,
+                type=notif_type,
+                title=title,
+                message=message,
+                order=order,
             )
-    except Exception as e:
-        print(f"Notification error: {e}")
+
+            # Queue only; never make an Expo HTTP request here.
+            if notif_type != "delivery_offer":
+                queue_push_notification(
+                    user=user,
+                    title=title,
+                    message=message,
+                    notification=notification,
+                    payload={
+                        "order_id": str(order.id) if order else None,
+                        "type": notif_type,
+                    },
+                )
+
+            return notification
+
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception(
+            "Failed to create notification for user %s",
+            user.pk,
+        )
+        return None
 
 
 class PlaceOrderView(APIView):
@@ -152,6 +176,8 @@ class PlaceOrderView(APIView):
             tcs_amount=tcs_amount,
             total_amount=grand_total,
             delivery_address=data['delivery_address'],
+            delivery_latitude=data.get('delivery_latitude'),
+            delivery_longitude=data.get('delivery_longitude'),
             instructions=data.get('instructions', ''),
             payment_mode=data.get('payment_mode', 'cod'),
             status='placed'
