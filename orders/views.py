@@ -82,6 +82,49 @@ def create_notification(user, notif_type, title, message, order=None):
         return None
 
 
+class CodCheckoutStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from uuid import UUID
+
+        if request.user.user_type != 'buyer':
+            return Response(
+                {'error': 'Only buyers can check COD checkout status.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        raw_id = request.query_params.get('client_request_id')
+
+        try:
+            request_id = UUID(raw_id) if raw_id else None
+        except (ValueError, TypeError, AttributeError):
+            request_id = None
+
+        if request_id is None:
+            return Response(
+                {'error': 'A valid client_request_id is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order = Order.objects.filter(
+            buyer=request.user,
+            payment_mode='cod',
+            client_request_id=request_id,
+        ).first()
+
+        if order is None:
+            return Response(
+                {'found': False},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {'found': True, 'order': OrderSerializer(order).data},
+            status=status.HTTP_200_OK,
+        )
+
+
 class PlaceOrderView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -95,124 +138,175 @@ class PlaceOrderView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         data = serializer.validated_data
-        try:
-            vendor = Vendor.objects.get(id=data['vendor_id'], status='approved')
-        except Vendor.DoesNotExist:
+
+        if data.get('payment_mode', 'cod') != 'cod':
             return Response(
-                {'error': 'Shop not found or not approved'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        # Block order if vendor has no bank details
-        if not vendor.bank_account_number or not vendor.bank_ifsc_code:
-            return Response(
-                {'error': 'This shop is currently not accepting orders. Please try another shop.'},
+                {'error': 'Online payments must use verified Razorpay checkout.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        total_amount = 0
-        order_items  = []
-        for item in data['items']:
-            try:
-                product  = Product.objects.get(
-                    id=item['product_id'], vendor=vendor, is_available=True
-                )
-                quantity = int(item['quantity'])
-                price    = float(item.get('price', product.price))
-                total_amount += price * quantity
-                variant = None
-                if item.get('variant_id'):
-                    try:
-                        from vendors.models import ProductVariant
-                        variant = ProductVariant.objects.get(id=item['variant_id'])
-                    except Exception:
-                        pass
-                order_items.append({'product': product, 'quantity': quantity, 'price': price, 'variant': variant})
-            except Product.DoesNotExist:
+
+        from orders.cod_idempotency import cod_request_fingerprint
+
+        try:
+            request_hash = cod_request_fingerprint(data)
+        except (ValueError, TypeError, KeyError) as exc:
+            return Response(
+                {'error': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        request_id = data['client_request_id']
+
+        from django.db import transaction
+
+        with transaction.atomic():
+            # Serialize COD checkouts for the same buyer.
+            from django.contrib.auth import get_user_model
+            buyer_model = get_user_model()
+            buyer_model.objects.select_for_update().get(pk=request.user.pk)
+
+            existing = Order.objects.filter(
+                buyer=request.user,
+                payment_mode='cod',
+                client_request_id=request_id,
+            ).first()
+
+            if existing is not None:
+                if existing.client_request_hash != request_hash:
+                    return Response(
+                        {'error': 'This checkout request ID was already used for different order details.'},
+                        status=status.HTTP_409_CONFLICT
+                    )
+
                 return Response(
-                    {'error': f"Product {item['product_id']} not found"},
+                    {
+                        'message': 'Order already placed successfully!',
+                        'order': OrderSerializer(existing).data,
+                    },
+                    status=status.HTTP_200_OK
+                )
+
+            try:
+                vendor = Vendor.objects.get(id=data['vendor_id'], status='approved')
+            except Vendor.DoesNotExist:
+                return Response(
+                    {'error': 'Shop not found or not approved'},
                     status=status.HTTP_404_NOT_FOUND
                 )
-        # ── Fee Structure ──────────────────────────────────────
-        # Platform fee
-        platform_fee = 10  # flat ₹10
+            # Block order if vendor has no bank details
+            if not vendor.bank_account_number or not vendor.bank_ifsc_code:
+                return Response(
+                    {'error': 'This shop is currently not accepting orders. Please try another shop.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            from decimal import Decimal
+            from orders.checkout_pricing import calculate_checkout_total
 
-        # Use delivery fee from frontend (slab-based, incl. GST)
-        delivery_fee_incl_gst = float(data.get('delivery_fee') or 0)
-        # Split delivery fee into base + GST (18%)
-        delivery_fee = round(delivery_fee_incl_gst / 1.18, 2)
-        gst_on_delivery = round(delivery_fee_incl_gst - delivery_fee, 2)
+            try:
+                pricing = calculate_checkout_total(
+                    vendor,
+                    data['items'],
+                    data.get('delivery_latitude'),
+                    data.get('delivery_longitude'),
+                )
+            except (ValueError, TypeError, ArithmeticError) as exc:
+                return Response(
+                    {'error': str(exc)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        # Commission rate based on vendor category
-        category = vendor.category.lower() if vendor.category else ''
-        if category in ['vegetables', 'fruits']:
-            commission_rate = 3.0
-        elif category in ['restaurant', 'bakery', 'fast_food', 'chinese', 'ice_cream']:
-            commission_rate = 20.0
-        else:
-            commission_rate = 6.0  # default groceries/supermarket
+            order_items = pricing['items']
+            subtotal = pricing['subtotal']
+            platform_fee = pricing['platform_fee']
+            delivery_fee_incl_gst = pricing['delivery_fee_incl_gst']
 
-        subtotal         = float(total_amount)
-        commission_amount = round(subtotal * commission_rate / 100, 2)
-        gst_on_platform  = round((platform_fee + delivery_fee) * 18 / 100, 2)
-        tcs_amount       = round(subtotal * 1 / 100, 2)
-        platform_fee_gst = round(platform_fee * 1.18)
-        frontend_total   = float(data.get('total', 0))
-        grand_total      = round(frontend_total, 2) if frontend_total > 0 else round(subtotal + platform_fee_gst + delivery_fee, 2)
+            # Preserve the existing Order financial field structure.
+            delivery_fee = (
+                delivery_fee_incl_gst / Decimal('1.18')
+            ).quantize(Decimal('0.01'))
+            gst_on_delivery = delivery_fee_incl_gst - delivery_fee
 
-        # Generate order number with shop initials
-        from .models import generate_order_number
-        order_num = generate_order_number(vendor=vendor)
+            category = vendor.category.lower() if vendor.category else ''
+            if category in ['vegetables', 'fruits']:
+                commission_rate = Decimal('3.0')
+            elif category in ['restaurant', 'bakery', 'fast_food', 'chinese', 'ice_cream']:
+                commission_rate = Decimal('20.0')
+            else:
+                commission_rate = Decimal('6.0')
 
-        order = Order.objects.create(
-            order_number=order_num,
-            buyer=request.user,
-            vendor=vendor,
-            subtotal=subtotal,
-            platform_fee=platform_fee,
-            delivery_fee=delivery_fee,
-            gst_on_delivery=gst_on_delivery,
-            commission_rate=commission_rate,
-            commission_amount=commission_amount,
-            gst_on_platform=gst_on_platform,
-            tcs_amount=tcs_amount,
-            total_amount=grand_total,
-            delivery_address=data['delivery_address'],
-            delivery_latitude=data.get('delivery_latitude'),
-            delivery_longitude=data.get('delivery_longitude'),
-            instructions=data.get('instructions', ''),
-            payment_mode=data.get('payment_mode', 'cod'),
-            status='placed'
-        )
-        for item in order_items:
-            OrderItem.objects.create(
-                order=order,
-                product=item['product'],
-                variant=item.get('variant'),
-                quantity=item['quantity'],
-                price=item['price']
+            commission_amount = (
+                subtotal * commission_rate / Decimal('100')
+            ).quantize(Decimal('0.01'))
+            gst_on_platform = (
+                (platform_fee + delivery_fee) * Decimal('0.18')
+            ).quantize(Decimal('0.01'))
+            tcs_amount = (
+                subtotal * Decimal('0.01')
+            ).quantize(Decimal('0.01'))
+
+            grand_total = pricing['total']
+
+            # Generate order number with shop initials
+            from .models import generate_order_number
+            order_num = generate_order_number(vendor=vendor)
+
+            order = Order.objects.create(
+                order_number=order_num,
+                buyer=request.user,
+                client_request_id=request_id,
+                client_request_hash=request_hash,
+                vendor=vendor,
+                subtotal=subtotal,
+                platform_fee=platform_fee,
+                delivery_fee=delivery_fee,
+                gst_on_delivery=gst_on_delivery,
+                commission_rate=commission_rate,
+                commission_amount=commission_amount,
+                gst_on_platform=gst_on_platform,
+                tcs_amount=tcs_amount,
+                total_amount=grand_total,
+                delivery_address=data['delivery_address'],
+                delivery_latitude=data.get('delivery_latitude'),
+                delivery_longitude=data.get('delivery_longitude'),
+                instructions=data.get('instructions', ''),
+                payment_mode=data.get('payment_mode', 'cod'),
+                status='placed'
             )
-        # Notify vendor about new order
-        create_notification(
-            user=vendor.user,
-            notif_type='new_order',
-            title='New Order Received',
-            message=f'Order #{str(order.id)[:8].upper()} received for ₹{order.total_amount}',
-            order=order,
-        )
-        # Notify buyer order placed
-        create_notification(
-            user=request.user,
-            notif_type='order_placed',
-            title='Order Placed Successfully',
-            message=f'Your order from {vendor.shop_name} has been placed!',
-            order=order,
-        )
-        # ── Clear cart after successful order ──────────────────
-        Cart.objects.filter(buyer=request.user, vendor=vendor).delete()
+            for item in order_items:
+                OrderItem.objects.create(
+                    order=order,
+                    product=item['product'],
+                    variant=item.get('variant'),
+                    quantity=item['quantity'],
+                    price=item['price'],
+                    gst_rate_at_purchase=item['gst_rate'],
+                    gst_pricing_mode_at_purchase=getattr(
+                        item['product'], 'gst_pricing_mode', 'exclusive'
+                    ),
+                )
+            # Notify vendor about new order
+            create_notification(
+                user=vendor.user,
+                notif_type='new_order',
+                title='New Order Received',
+                message=f'Order #{str(order.id)[:8].upper()} received for ₹{order.total_amount}',
+                order=order,
+            )
+            # Notify buyer order placed
+            create_notification(
+                user=request.user,
+                notif_type='order_placed',
+                title='Order Placed Successfully',
+                message=f'Your order from {vendor.shop_name} has been placed!',
+                order=order,
+            )
+            # ── Clear cart after successful order ──────────────────
+            Cart.objects.filter(buyer=request.user, vendor=vendor).delete()
 
-        return Response({
-            'message': 'Order placed successfully!',
-            'order': OrderSerializer(order).data
-        }, status=status.HTTP_201_CREATED)
+            return Response({
+                'message': 'Order placed successfully!',
+                'order': OrderSerializer(order).data
+            }, status=status.HTTP_201_CREATED)
 
 
 class BuyerOrdersView(APIView):
@@ -545,6 +639,7 @@ def get_cart(request):
             'base_product_id': str(item.product.id),
             'product_image': str(item.product.image) if item.product.image else '',
             'product_gst':   str(item.product.gst_percentage),
+            'product_gst_pricing_mode': item.product.gst_pricing_mode,
             'vendor_id':     str(item.vendor.id),
             'vendor_name':   item.vendor.shop_name,
             'vendor_mov':    {'restaurant':499,'supermarket':699,'bakery':399,'veg_fruits':199}.get(item.vendor.category, 199),

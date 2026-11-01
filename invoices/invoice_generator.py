@@ -68,6 +68,30 @@ def header_table(order, title, extra=''):
     t.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LINEBELOW',(0,0),(-1,0),0.5,colors.HexColor('#e5e7eb'))]))
     return t
 
+
+def _calculate_order_item_invoice_tax(item, vendor_state, buyer_state):
+    """Calculate invoice values using purchase-time GST snapshots when available."""
+    from .tax_utils import calculate_product_invoice_tax
+
+    rate = item.gst_rate_at_purchase
+    mode = item.gst_pricing_mode_at_purchase
+
+    if rate is None or mode is None:
+        # Legacy orders were created using GST-exclusive pricing.
+        # Their original tax rate may not be recoverable.
+        rate = item.product.gst_percentage or 0
+        mode = "exclusive"
+
+    return calculate_product_invoice_tax(
+        price=item.price,
+        quantity=item.quantity,
+        gst_rate=rate,
+        pricing_mode=mode,
+        supplier_state=vendor_state,
+        buyer_state=buyer_state,
+    )
+
+
 def generate_buyer_invoice(order):
     """Doc 1 — Combined Buyer Invoice (Wrapper with Section A + Section B)"""
     from reportlab.lib.pagesizes import A4
@@ -181,11 +205,17 @@ def generate_buyer_invoice(order):
 
     for item in order.items.all():
         pr      = Decimal(str(item.price))
-        taxable = pr * item.quantity
-        gst_pct = Decimal(str(item.product.gst_percentage or 0))
+        tax = _calculate_order_item_invoice_tax(
+            item, vendor_state, buyer_state
+        )
+        taxable = tax['taxable']
+        gst_pct = Decimal(str(
+            item.gst_rate_at_purchase if item.gst_rate_at_purchase is not None
+            else item.product.gst_percentage or 0
+        ))
         hsn     = getattr(item.product, 'hsn_code', None) or "—"
-        cgst, sgst, igst = calc_gst(taxable, gst_pct, vendor_state, buyer_state)
-        total_line = taxable + cgst + sgst + igst
+        cgst, sgst, igst = tax['cgst'], tax['sgst'], tax['igst']
+        total_line = tax['total']
         sec_a_taxable += taxable
         sec_a_cgst    += cgst
         sec_a_sgst    += sgst
@@ -203,7 +233,7 @@ def generate_buyer_invoice(order):
 
     sec_a_total = sec_a_taxable + sec_a_cgst + sec_a_sgst + sec_a_igst
     if not has_gst:
-        sec_a_total = sec_a_taxable
+        sec_a_total = sec_a_taxable + sec_a_cgst + sec_a_sgst + sec_a_igst
         sec_a_summary = [[p("<b>Section A Total</b>",bold=True,color=BLUE), p(f"<b>Rs.{sec_a_total:.2f}</b>",bold=True,color=BLUE,align="RIGHT")]]
     else:
         sec_a_summary = [[p("Taxable"), p(f"Rs.{sec_a_taxable:.2f}",align="RIGHT")]]
@@ -237,7 +267,24 @@ def generate_buyer_invoice(order):
     pf  = Decimal(str(order.platform_fee or 10))
     df  = Decimal(str(order.delivery_fee or 0))
     pf_cgst, pf_sgst, pf_igst = calc_gst(pf, 18, PLATFORM_STATE, buyer_state)
-    df_cgst, df_sgst, df_igst = calc_gst(df, 18, PLATFORM_STATE, buyer_state)
+    stored_delivery_gst = getattr(order, "gst_on_delivery", None)
+
+    if stored_delivery_gst is not None:
+        delivery_tax = Decimal(str(stored_delivery_gst))
+
+        if sec_b_interstate:
+            df_cgst = Decimal("0.00")
+            df_sgst = Decimal("0.00")
+            df_igst = delivery_tax
+        else:
+            df_cgst = (delivery_tax / Decimal("2")).quantize(Decimal("0.01"))
+            df_sgst = delivery_tax - df_cgst
+            df_igst = Decimal("0.00")
+    else:
+        df_cgst, df_sgst, df_igst = calc_gst(
+            df, 18, PLATFORM_STATE, buyer_state
+        )
+
     pf_total = pf + pf_cgst + pf_sgst + pf_igst
     df_total = df + df_cgst + df_sgst + df_igst
     sec_b_total = pf_total + df_total
@@ -271,12 +318,26 @@ def generate_buyer_invoice(order):
     # ══════════════════════════════════════════════════════════
     # GRAND TOTAL
     # ══════════════════════════════════════════════════════════
-    gt = sec_a_total + sec_b_total
+    calculated_total = sec_a_total + sec_b_total
+    actual_total = getattr(order, "total_amount", None)
+    gt = Decimal(str(actual_total)) if actual_total is not None else calculated_total
+    rounding_adjustment = gt - calculated_total
+
     td = [
         [p("Section A — Seller goods total"), p(f"Rs.{sec_a_total:.2f}",align="RIGHT")],
         [p("Section B — Platform charges total"), p(f"Rs.{sec_b_total:.2f}",align="RIGHT")],
-        [p("<b>Grand total paid</b>",bold=True,size=11,color=DARK), p(f"<b>Rs.{gt:.2f}</b>",bold=True,size=11,align="RIGHT")],
     ]
+
+    if rounding_adjustment != Decimal("0.00"):
+        td.append([
+            p("Rounding adjustment"),
+            p(f"Rs.{rounding_adjustment:+.2f}",align="RIGHT"),
+        ])
+
+    td.append([
+        p("<b>Grand total paid</b>",bold=True,size=11,color=DARK),
+        p(f"<b>Rs.{gt:.2f}</b>",bold=True,size=11,align="RIGHT"),
+    ])
     tt = Table(td, colWidths=[140*mm,40*mm])
     tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1.5,DARK),("BACKGROUND",(0,-1),(-1,-1),LIGHT),("PADDING",(0,0),(-1,-1),5)]))
     s.append(tt)
@@ -870,11 +931,17 @@ def generate_seller_dashboard_invoice(order):
 
     for item in order.items.all():
         pr       = Decimal(str(item.price))
-        taxable  = pr * item.quantity
-        gst_pct  = Decimal(str(item.product.gst_percentage or 0))
+        tax = _calculate_order_item_invoice_tax(
+            item, vendor_state, buyer_state
+        )
+        taxable = tax['taxable']
+        gst_pct = Decimal(str(
+            item.gst_rate_at_purchase if item.gst_rate_at_purchase is not None
+            else item.product.gst_percentage or 0
+        ))
         hsn      = getattr(item.product, 'hsn_code', None) or '—'
-        cgst, sgst, igst = calc_gst(taxable, gst_pct, vendor_state, buyer_state)
-        total_line = taxable + cgst + sgst + igst
+        cgst, sgst, igst = tax['cgst'], tax['sgst'], tax['igst']
+        total_line = tax['total']
         subtotal   += taxable
         total_cgst += cgst
         total_sgst += sgst
@@ -896,7 +963,7 @@ def generate_seller_dashboard_invoice(order):
     invoice_total = subtotal + total_cgst + total_sgst + total_igst
     if not has_gst:
         td = [
-            [p("<b>Order Total</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{subtotal:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")]
+            [p("<b>Order Total</b>",bold=True,size=10,color=BLUE), p(f"<b>Rs.{invoice_total:.2f}</b>",bold=True,size=10,color=BLUE,align="RIGHT")]
         ]
     else:
         td = [[p("<b>Taxable value</b>",bold=True), p(f"Rs.{subtotal:.2f}",align="RIGHT")]]
@@ -910,7 +977,7 @@ def generate_seller_dashboard_invoice(order):
     tt.setStyle(TableStyle([("BOX",(0,0),(-1,-1),0.5,colors.HexColor("#e5e7eb")),("LINEABOVE",(0,-1),(-1,-1),1,BLUE),("BACKGROUND",(0,-1),(-1,-1),colors.HexColor("#eff6ff")),("PADDING",(0,0),(-1,-1),4)]))
     s.append(tt)
     s.append(Spacer(1,2*mm))
-    s.append(p(f"Amount in words: {amount_in_words(subtotal if not has_gst else invoice_total)}", color=GRAY, size=7))
+    s.append(p(f"Amount in words: {amount_in_words(invoice_total)}", color=GRAY, size=7))
     s.append(Spacer(1,4*mm))
     s.append(HRFlowable(width="100%",thickness=0.5,color=colors.HexColor("#e5e7eb")))
     s.append(Spacer(1,2*mm))
@@ -989,7 +1056,24 @@ def generate_platform_invoice(order):
     pf  = Decimal(str(order.platform_fee or 10))
     df  = Decimal(str(order.delivery_fee or 0))
     pf_cgst, pf_sgst, pf_igst = calc_gst(pf, 18, PLATFORM_STATE, buyer_state)
-    df_cgst, df_sgst, df_igst = calc_gst(df, 18, PLATFORM_STATE, buyer_state)
+    stored_delivery_gst = getattr(order, "gst_on_delivery", None)
+
+    if stored_delivery_gst is not None:
+        delivery_tax = Decimal(str(stored_delivery_gst))
+
+        if interstate:
+            df_cgst = Decimal("0.00")
+            df_sgst = Decimal("0.00")
+            df_igst = delivery_tax
+        else:
+            df_cgst = (delivery_tax / Decimal("2")).quantize(Decimal("0.01"))
+            df_sgst = delivery_tax - df_cgst
+            df_igst = Decimal("0.00")
+    else:
+        df_cgst, df_sgst, df_igst = calc_gst(
+            df, 18, PLATFORM_STATE, buyer_state
+        )
+
     pf_total = pf + pf_cgst + pf_sgst + pf_igst
     df_total = df + df_cgst + df_sgst + df_igst
     total    = pf_total + df_total
@@ -1176,11 +1260,17 @@ def generate_credit_note(original_invoice_type, order, reason="Refund/Return"):
         total_credit = Decimal("0")
         for item in order.items.all():
             pr      = Decimal(str(item.price))
-            taxable = pr * item.quantity
-            gst_pct = Decimal(str(item.product.gst_percentage or 0))
+            tax = _calculate_order_item_invoice_tax(
+                item, vendor_state, buyer_state
+            )
+            taxable = tax['taxable']
+            gst_pct = Decimal(str(
+                item.gst_rate_at_purchase if item.gst_rate_at_purchase is not None
+                else item.product.gst_percentage or 0
+            ))
             hsn     = getattr(item.product, 'hsn_code', None) or "—"
-            cgst, sgst, igst = calc_gst(taxable, gst_pct, vendor_state, buyer_state)
-            credit  = taxable + cgst + sgst + igst
+            cgst, sgst, igst = tax['cgst'], tax['sgst'], tax['igst']
+            credit = tax['total']
             total_credit += credit
             if interstate:
                 rows.append([p(item.product.name),p(hsn,align="CENTER"),p(str(item.quantity),align="CENTER"),p(f"Rs.{pr:.2f}",align="RIGHT"),p(f"Rs.{taxable:.2f}",align="RIGHT"),p(f"Rs.{igst:.2f}",align="RIGHT"),p(f"Rs.{credit:.2f}",align="RIGHT")])

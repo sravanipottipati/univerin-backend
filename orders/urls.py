@@ -1,7 +1,7 @@
-from .views import VendorRequestDeliveryView
+from .views import VendorRequestDeliveryView, CodCheckoutStatusView
 from django.urls import path
 from .views import RefundRequestView, AdminRefundView
-from .payment_views import create_payment_order, verify_payment, payment_failed, create_razorpay_only, place_order_after_payment
+from .payment_views import create_payment_order, verify_payment, payment_failed, create_razorpay_only, place_order_after_payment, razorpay_checkout_status, recover_razorpay_checkout
 from .views import (ClearNotificationsView,submit_return, PlaceOrderView, BuyerOrdersView,
                     VendorOrdersView, UpdateOrderStatusView, cancel_order,
                     OrderDetailView, NotificationListView,
@@ -12,6 +12,7 @@ from .views import (ClearNotificationsView,submit_return, PlaceOrderView, BuyerO
 
 urlpatterns = [
     # ─── ORDERS ───────────────────────────────────────────────────────────────
+    path('cod/checkout-status/', CodCheckoutStatusView.as_view(), name='cod-checkout-status'),
     path('place/',                               PlaceOrderView.as_view(),           name='place-order'),
     path('mine/',                                BuyerOrdersView.as_view(),          name='buyer-orders'),
     path('vendor/',                              VendorOrdersView.as_view(),         name='vendor-orders'),
@@ -45,5 +46,7 @@ urlpatterns = [
     path('payment/failed/',                      payment_failed,                     name='payment-failed'),
     path('payment/create-razorpay/',             create_razorpay_only,               name='create-razorpay-only'),
     path('payment/place-after-payment/',         place_order_after_payment,          name='place-after-payment'),
+    path('payment/recover-checkout/', recover_razorpay_checkout, name='razorpay-recover-checkout'),
+    path('payment/checkout-status/',              razorpay_checkout_status,          name='razorpay-checkout-status'),
     path('<uuid:order_id>/cancel/',              cancel_order,                 name='cancel-order'),
 ]

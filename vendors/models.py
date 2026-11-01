@@ -109,6 +109,11 @@ class Product(models.Model):
     price        = models.DecimalField(max_digits=8, decimal_places=2)
     mrp          = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, help_text='Original price before discount')
     gst_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text='GST % e.g. 5, 12, 18')
+    gst_pricing_mode = models.CharField(
+        max_length=10,
+        choices=[('exclusive', 'GST Exclusive'), ('inclusive', 'GST Inclusive')],
+        default='exclusive',
+    )
     category     = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='other')
     is_available = models.BooleanField(default=True)
     is_veg       = models.BooleanField(default=True)  # True=Veg, False=Non-veg

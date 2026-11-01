@@ -58,6 +58,52 @@ def calc_gst(taxable_value, gst_rate_pct, supplier_state, place_of_supply_state)
         sgst = (taxable * half_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         return cgst, sgst, Decimal("0")
 
+
+def calculate_product_invoice_tax(price, quantity, gst_rate, pricing_mode,
+                                  supplier_state, buyer_state):
+    """Calculate product invoice tax for inclusive or exclusive prices."""
+    unit_price = Decimal(str(price))
+    qty = int(quantity)
+    rate = Decimal(str(gst_rate))
+    penny = Decimal("0.01")
+
+    if unit_price < 0 or qty <= 0 or not 0 <= rate <= 100:
+        raise ValueError("Invalid product invoice tax inputs.")
+    if pricing_mode not in ("inclusive", "exclusive"):
+        raise ValueError("Invalid GST pricing mode.")
+
+    base = (unit_price * qty).quantize(penny, rounding=ROUND_HALF_UP)
+
+    if pricing_mode == "inclusive":
+        total = base
+        taxable = (
+            total * Decimal("100") / (Decimal("100") + rate)
+        ).quantize(penny, rounding=ROUND_HALF_UP)
+        tax = total - taxable
+    else:
+        taxable = base
+        tax = (taxable * rate / Decimal("100")).quantize(
+            penny, rounding=ROUND_HALF_UP
+        )
+        total = taxable + tax
+
+    if is_interstate(supplier_state, buyer_state):
+        cgst = sgst = Decimal("0.00")
+        igst = tax
+    else:
+        cgst = (tax / 2).quantize(penny, rounding=ROUND_HALF_UP)
+        sgst = tax - cgst
+        igst = Decimal("0.00")
+
+    return {
+        "taxable": taxable,
+        "cgst": cgst,
+        "sgst": sgst,
+        "igst": igst,
+        "total": total,
+    }
+
+
 def calc_tcs(taxable_value, supplier_state, place_of_supply_state):
     """Calculate GST TCS at 0.5%."""
     taxable = Decimal(str(taxable_value))

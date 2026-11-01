@@ -82,6 +82,8 @@ class Order(models.Model):
     delivery_longitude = models.FloatField(null=True, blank=True)
     instructions     = models.TextField(blank=True, null=True)
     payment_mode          = models.CharField(max_length=10, choices=PAYMENT_CHOICES, default='cod')
+    client_request_id     = models.UUIDField(null=True, blank=True, db_index=True)
+    client_request_hash   = models.CharField(max_length=64, null=True, blank=True)
     payment_status        = models.CharField(max_length=20, default='pending')
     razorpay_order_id     = models.CharField(max_length=100, blank=True, null=True)
     razorpay_payment_id   = models.CharField(max_length=100, blank=True, null=True)
@@ -103,6 +105,26 @@ class Order(models.Model):
     delivery_otp      = models.CharField(max_length=6, blank=True, null=True)
     delivery_otp_attempts = models.PositiveSmallIntegerField(default=0)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['razorpay_payment_id'],
+                condition=(
+                    models.Q(razorpay_payment_id__isnull=False)
+                    & ~models.Q(razorpay_payment_id='')
+                ),
+                name='unique_nonempty_razorpay_payment_id',
+            ),
+            models.UniqueConstraint(
+                fields=['buyer', 'client_request_id'],
+                condition=models.Q(
+                    payment_mode='cod',
+                    client_request_id__isnull=False,
+                ),
+                name='unique_buyer_cod_request_id',
+            ),
+        ]
+
     def __str__(self):
         return f"{self.order_number} — {self.buyer.full_name} from {self.vendor.shop_name}"
 
@@ -114,6 +136,15 @@ class OrderItem(models.Model):
     variant  = models.ForeignKey('vendors.ProductVariant', on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.IntegerField(default=1)
     price    = models.DecimalField(max_digits=8, decimal_places=2)
+    gst_rate_at_purchase = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True
+    )
+    gst_pricing_mode_at_purchase = models.CharField(
+        max_length=10,
+        choices=[("exclusive", "GST Exclusive"), ("inclusive", "GST Inclusive")],
+        null=True,
+        blank=True,
+    )
 
     def __str__(self):
         return f"{self.product.name} x{self.quantity}"
@@ -386,3 +417,53 @@ class PushNotificationJob(models.Model):
 
     def __str__(self):
         return f"Push {self.id} - {self.status}"
+
+
+class RazorpayCheckout(models.Model):
+    """Server-controlled checkout snapshot for Razorpay payments."""
+
+    STATUS_CHOICES = (
+        ("created", "Created"),
+        ("confirmed", "Confirmed"),
+    )
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    buyer = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="razorpay_checkouts",
+    )
+    vendor = models.ForeignKey(
+        Vendor,
+        on_delete=models.PROTECT,
+        related_name="razorpay_checkouts",
+    )
+    razorpay_order_id = models.CharField(
+        max_length=100,
+        unique=True,
+        null=True,
+        blank=True,
+    )
+    amount_paise = models.PositiveBigIntegerField()
+    snapshot = models.JSONField()
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="created",
+    )
+    order = models.OneToOneField(
+        "orders.Order",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="razorpay_checkout",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Razorpay checkout {self.razorpay_order_id or self.id}"

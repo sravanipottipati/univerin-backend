@@ -26,6 +26,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 class PlaceOrderSerializer(serializers.Serializer):
     vendor_id = serializers.UUIDField()
+    client_request_id = serializers.UUIDField(required=False)
     delivery_address = serializers.CharField()
     delivery_latitude = serializers.FloatField(
         required=False, min_value=-90, max_value=90
@@ -47,6 +48,11 @@ class PlaceOrderSerializer(serializers.Serializer):
         if has_lat != has_lng:
             raise serializers.ValidationError({
                 'delivery_location': 'Both latitude and longitude are required together.'
+            })
+
+        if attrs.get('payment_mode', 'cod') == 'cod' and not attrs.get('client_request_id'):
+            raise serializers.ValidationError({
+                'client_request_id': 'A request ID is required for COD checkout.'
             })
 
         return attrs
