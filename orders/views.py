@@ -941,3 +941,54 @@ def cancel_order(request, order_id):
     except Order.DoesNotExist:
         return Response({'error': 'Order not found'}, status=404)
 
+
+
+# ─── BUYER LIVE DELIVERY TRACKING ────────────────────────────────────────────
+class BuyerDeliveryTrackingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id):
+        from django.utils import timezone
+        from datetime import timedelta
+        from delivery_partner.models import DeliveryPartner
+
+        try:
+            order = Order.objects.get(id=order_id, buyer=request.user)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found'}, status=404)
+
+        active_stages = (
+            'accepted',
+            'arrived_at_shop',
+            'picked_up',
+            'arrived_at_buyer',
+        )
+
+        if (
+            order.status in ('cancelled', 'rejected', 'delivered')
+            or order.dp_status not in active_stages
+            or not order.delivery_partner_id
+        ):
+            return Response({'tracking_available': False})
+
+        dp = DeliveryPartner.objects.filter(
+            user_id=order.delivery_partner_id
+        ).first()
+
+        if not dp or not dp.location_updated_at:
+            return Response({'tracking_available': False})
+
+        if (
+            dp.current_latitude is None
+            or dp.current_longitude is None
+            or dp.location_updated_at < timezone.now() - timedelta(minutes=2)
+        ):
+            return Response({'tracking_available': False})
+
+        return Response({
+            'tracking_available': True,
+            'latitude': dp.current_latitude,
+            'longitude': dp.current_longitude,
+            'updated_at': dp.location_updated_at.isoformat(),
+            'dp_status': order.dp_status,
+        })

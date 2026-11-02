@@ -10,7 +10,10 @@ from .views import (ClearNotificationsView,submit_return, PlaceOrderView, BuyerO
                     remove_from_cart, clear_cart,
                     ValidateCouponView)
 
+from .views import BuyerDeliveryTrackingView
+
 urlpatterns = [
+    path('<uuid:order_id>/tracking/', BuyerDeliveryTrackingView.as_view(), name='buyer-delivery-tracking'),
     # ─── ORDERS ───────────────────────────────────────────────────────────────
     path('cod/checkout-status/', CodCheckoutStatusView.as_view(), name='cod-checkout-status'),
     path('place/',                               PlaceOrderView.as_view(),           name='place-order'),
