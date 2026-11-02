@@ -3,7 +3,10 @@ import time
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
-from orders.dispatch_service import expire_due_delivery_offers
+from orders.dispatch_service import (
+    expire_due_delivery_offers,
+    retry_recent_unassigned_orders,
+)
 
 
 class Command(BaseCommand):
@@ -20,6 +23,7 @@ class Command(BaseCommand):
 
                 try:
                     expired_count = expire_due_delivery_offers()
+                    retried_count = retry_recent_unassigned_orders()
 
                     if expired_count:
                         self.stdout.write(

@@ -8,6 +8,10 @@ from django.test import SimpleTestCase
 class DeliveryOfferWorkerTests(SimpleTestCase):
 
     @patch(
+        "orders.management.commands.run_delivery_offer_worker.retry_recent_unassigned_orders",
+        return_value=0,
+    )
+    @patch(
         "orders.management.commands.run_delivery_offer_worker.time.sleep",
         side_effect=KeyboardInterrupt,
     )
@@ -19,7 +23,7 @@ class DeliveryOfferWorkerTests(SimpleTestCase):
         return_value=2,
     )
     def test_worker_processes_offers_and_stops_safely(
-        self, mock_expire, mock_close, mock_sleep
+        self, mock_expire, mock_close, mock_sleep, mock_retry
     ):
         output = StringIO()
 
@@ -29,6 +33,7 @@ class DeliveryOfferWorkerTests(SimpleTestCase):
         )
 
         mock_expire.assert_called_once_with()
+        mock_retry.assert_called_once_with()
         mock_sleep.assert_called_once_with(5)
         self.assertEqual(mock_close.call_count, 2)
 
@@ -46,6 +51,10 @@ class DeliveryOfferWorkerTests(SimpleTestCase):
         )
 
     @patch(
+        "orders.management.commands.run_delivery_offer_worker.retry_recent_unassigned_orders",
+        return_value=0,
+    )
+    @patch(
         "orders.management.commands.run_delivery_offer_worker.time.sleep",
         side_effect=KeyboardInterrupt,
     )
@@ -57,7 +66,7 @@ class DeliveryOfferWorkerTests(SimpleTestCase):
         side_effect=Exception("Temporary database connection failure"),
     )
     def test_worker_recovers_from_database_error(
-        self, mock_expire, mock_close, mock_sleep
+        self, mock_expire, mock_close, mock_sleep, mock_retry
     ):
         output = StringIO()
         errors = StringIO()
@@ -69,6 +78,7 @@ class DeliveryOfferWorkerTests(SimpleTestCase):
         )
 
         mock_expire.assert_called_once_with()
+        mock_retry.assert_not_called()
         mock_sleep.assert_called_once_with(5)
         self.assertEqual(mock_close.call_count, 2)
 
