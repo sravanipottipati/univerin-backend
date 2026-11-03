@@ -606,7 +606,7 @@ def _create_order_from_verified_checkout(
                     title='New Order Received',
                     message=(
                         f'Order #{str(order.id)[:8].upper()} '
-                        f'received for ₹{order.total_amount}'
+                        f'received for ₹{order.subtotal}'
                     ),
                     order=order,
                 )

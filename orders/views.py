@@ -289,7 +289,7 @@ class PlaceOrderView(APIView):
                 user=vendor.user,
                 notif_type='new_order',
                 title='New Order Received',
-                message=f'Order #{str(order.id)[:8].upper()} received for ₹{order.total_amount}',
+                message=f'Order #{str(order.id)[:8].upper()} received for ₹{order.subtotal}',
                 order=order,
             )
             # Notify buyer order placed
