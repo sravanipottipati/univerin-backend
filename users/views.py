@@ -664,8 +664,17 @@ from rest_framework.decorators import api_view, permission_classes
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def delete_account_request(request):
-    """Instantly deactivate account and notify admin"""
+    """Deactivate authenticated user account and notify admin."""
     user = request.user
+
+    from .play_review_otp import is_restricted_review_account
+
+    if user.is_staff or user.is_admin or is_restricted_review_account(user.phone_number):
+        return Response(
+            {'error': 'Account deletion is unavailable for this account.'},
+            status=403,
+        )
+
     try:
         phone = user.phone_number
         user.is_active = False
@@ -683,24 +692,9 @@ def delete_account_request(request):
             )
         except Exception:
             pass
-        return Response({'message': 'Account deleted successfully.'}, status=200)
-    except Exception as e:
-        return Response({'error': 'Failed to delete account. Please try again.'}, status=500)
-    except Exception as e:
-        return Response({'message': 'Request submitted. We will process it within 24 hours.'}, status=200)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def make_admin(request):
-    secret = request.data.get('secret', '')
-    if secret != 'univerin_admin_2024':
-        return Response({'error': 'Invalid secret'}, status=403)
-    user = request.user
-    user.is_staff = True
-    user.is_superuser = True
-    user.save()
-    return Response({'message': f'{user.phone_number} is now admin!'})
+        return Response({'message': 'Account deactivated successfully.'}, status=200)
+    except Exception:
+        return Response({'error': 'Failed to deactivate account. Please try again.'}, status=500)
 
 
 class VerifyOTPView(APIView):
