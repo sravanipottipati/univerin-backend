@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from orders.models import Order
+from users.play_review_otp import is_restricted_review_account
 
 def get_razorpay_client():
     key_id     = os.environ.get('RAZORPAY_KEY_ID', '')
@@ -18,6 +19,12 @@ def get_razorpay_client():
 @permission_classes([IsAuthenticated])
 def create_payment_order(request):
     """Create Razorpay order for online payment"""
+    if is_restricted_review_account(request.user.phone_number):
+        return Response(
+            {'error': 'Review accounts cannot initiate real payments'},
+            status=403,
+        )
+
     try:
         order_id = request.data.get('order_id')
         if not order_id:
@@ -128,6 +135,12 @@ def payment_failed(request):
 @permission_classes([IsAuthenticated])
 def create_razorpay_only(request):
     """Create a Razorpay order using server-validated checkout pricing."""
+    if is_restricted_review_account(request.user.phone_number):
+        return Response(
+            {'error': 'Review accounts cannot initiate real payments'},
+            status=403,
+        )
+
     from vendors.models import Vendor
     from orders.models import RazorpayCheckout
     from orders.checkout_pricing import calculate_checkout_total

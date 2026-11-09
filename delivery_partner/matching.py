@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from delivery_partner.geo_utils import haversine_km
 from delivery_partner.models import DeliveryPartner
+from users.play_review_otp import is_restricted_review_account
 
 
 ACTIVE_DP_STATUSES = [
@@ -56,6 +57,10 @@ def find_nearby_delivery_partners(
     results = []
 
     for dp in candidates:
+        # Never dispatch real deliveries to the Google Play reviewer.
+        if is_restricted_review_account(dp.user.phone_number):
+            continue
+
         # Check active deliveries separately to avoid excluding
         # partners merely because they have completed past orders.
         has_active_delivery = dp.user.deliveries.filter(

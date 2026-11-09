@@ -96,6 +96,16 @@ class DPDutyToggleView(APIView):
         if dp.status != 'approved':
             return Response({'error': 'Your account is not yet approved'}, status=status.HTTP_403_FORBIDDEN)
 
+        from users.play_review_otp import is_restricted_review_account
+        if is_restricted_review_account(request.user.phone_number):
+            if dp.is_online:
+                dp.is_online = False
+                dp.save(update_fields=['is_online', 'updated_at'])
+            return Response(
+                {'error': 'Review accounts cannot go online', 'is_online': False},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         is_online = request.data.get('is_online', False)
         dp.is_online = bool(is_online)
         dp.save(update_fields=['is_online', 'updated_at'])

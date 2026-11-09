@@ -133,10 +133,8 @@ def send_register_otp(request):
         try:
             url = f"https://2factor.in/API/V1/{api_key}/SMS/+91{phone_number}/{otp_code}"
             resp = req.get(url, timeout=10)
-            print(f"[Register OTP] 2Factor: {resp.json()}")
         except Exception as e:
             print(f"[Register OTP] SMS error: {e}")
-    print(f"[Register OTP] Phone: {phone_number} | OTP: {otp_code}")
     return Response({'message': 'OTP sent successfully'}, status=200)
 
 @api_view(['POST'])
@@ -200,7 +198,53 @@ def send_login_otp(request):
         return Response({'error': 'No account found with this phone number. Please register first.'}, status=404)
     if not user.is_active:
         return Response({'error': 'This account has been deactivated.'}, status=403)
-    # Reuse PasswordResetOTP model for login OTP
+    # Limit OTP requests per phone number to reduce SMS abuse.
+    import hashlib
+    from django.core.cache import cache
+
+    digest = hashlib.sha256(phone_number.encode()).hexdigest()
+    send_key = 'login_otp_send_' + digest
+
+    from django.db import connection, transaction
+
+    lock_id = int.from_bytes(
+        hashlib.sha256(
+            ('otp-send-lock:' + phone_number).encode()
+        ).digest()[:8],
+        'big',
+        signed=True,
+    )
+
+    with transaction.atomic():
+        if connection.vendor == 'postgresql':
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    'SELECT pg_advisory_xact_lock(%s)',
+                    [lock_id],
+                )
+
+        requests_made = cache.get(send_key, 0)
+
+        if requests_made >= 3:
+            return Response(
+                {'error': 'Too many OTP requests. Try again in 15 minutes.'},
+                status=429,
+            )
+
+        if requests_made == 0:
+            cache.set(send_key, 1, timeout=900)
+        else:
+            cache.incr(send_key)
+
+    # Review accounts use a separately configured OTP.
+    # Never send an SMS or generate a random OTP for these accounts.
+    from .play_review_otp import is_review_account
+    if is_review_account(phone_number):
+        if user.is_staff or user.is_admin:
+            return Response({'error': 'Login unavailable'}, status=403)
+        return Response({'message': 'OTP sent successfully'}, status=200)
+
+    # Normal customer login: generate and send a temporary OTP.
     from .models import PasswordResetOTP
     otp_code = PasswordResetOTP.generate_otp()
     PasswordResetOTP.objects.create(user=user, otp=otp_code)
@@ -213,41 +257,104 @@ def send_login_otp(request):
             url = f"https://2factor.in/API/V1/{api_key}/SMS/+91{phone_number}/{otp_code}"
             resp = req.get(url, timeout=10)
             result = resp.json()
-            print(f"[Login OTP] 2Factor: {result}")
         except Exception as e:
             print(f"[Login OTP] SMS error: {e}")
-    print(f"[Login OTP] Phone: {phone_number} | OTP: {otp_code}")
     return Response({'message': 'OTP sent successfully'}, status=200)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_login_otp(request):
-    """Verify OTP and return JWT tokens"""
-    phone_number = request.data.get('phone_number', '').strip()
-    otp_code     = request.data.get('otp', '').strip()
-    if not phone_number or not otp_code:
-        return Response({'error': 'Phone number and OTP are required'}, status=400)
-    try:
-        user = User.objects.get(phone_number=phone_number)
-    except User.DoesNotExist:
-        return Response({'error': 'No account found with this phone number'}, status=404)
+    """Verify regular or explicitly configured Google Play reviewer OTP."""
+    import hashlib
+    import re
+    from django.core.cache import cache
+    from django.db import connection, transaction
+    from .play_review_otp import is_review_account, verify_review_otp
     from .models import PasswordResetOTP
-    try:
-        otp_record = PasswordResetOTP.objects.filter(
-            user=user, otp=otp_code, is_used=False
-        ).latest('created_at')
-    except PasswordResetOTP.DoesNotExist:
-        return Response({'error': 'Invalid OTP. Please check and try again.'}, status=400)
-    if not otp_record.is_valid():
-        return Response({'error': 'OTP has expired. Please request a new one.'}, status=400)
-    otp_record.is_used = True
-    otp_record.save()
-    tokens = get_tokens_for_user(user)
-    return Response({
-        'message': 'Login successful',
-        'user': UserSerializer(user).data,
-        'tokens': tokens,
-    }, status=200)
+
+    phone_number = str(request.data.get('phone_number') or '').strip()
+    otp_code = str(request.data.get('otp') or '').strip()
+
+    if not re.fullmatch(r'[0-9]{10}', phone_number):
+        return Response({'error': 'Enter a valid phone number'}, status=400)
+
+    if not re.fullmatch(r'[0-9]{6}', otp_code):
+        return Response({'error': 'Enter a valid 6-digit OTP'}, status=400)
+
+    # A stable, non-sensitive cache key per phone number.
+    digest = hashlib.sha256(phone_number.encode()).hexdigest()
+    cache_key = 'login_otp_failures_' + digest
+    lock_id = int.from_bytes(
+        hashlib.sha256(('otp-lock:' + phone_number).encode()).digest()[:8],
+        'big',
+        signed=True,
+    )
+
+    with transaction.atomic():
+        # Serialize attempts for this account across PostgreSQL workers.
+        if connection.vendor == 'postgresql':
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT pg_advisory_xact_lock(%s)', [lock_id])
+
+        failures = cache.get(cache_key, 0)
+        if failures >= 5:
+            return Response(
+                {'error': 'Too many attempts. Try again in 15 minutes.'},
+                status=429,
+            )
+
+        try:
+            user = User.objects.get(phone_number=phone_number)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Invalid phone number or OTP'},
+                status=400,
+            )
+
+        if not user.is_active:
+            return Response({'error': 'This account is deactivated'}, status=403)
+
+        valid = False
+        otp_record = None
+
+        if is_review_account(phone_number):
+            # Administrative accounts cannot use reviewer credentials.
+            if not user.is_staff and not user.is_admin:
+                valid = verify_review_otp(phone_number, otp_code)
+        else:
+            otp_record = (
+                PasswordResetOTP.objects.filter(
+                    user=user,
+                    otp=otp_code,
+                    is_used=False,
+                )
+                .order_by('-created_at')
+                .first()
+            )
+            valid = otp_record is not None and otp_record.is_valid()
+
+        if not valid:
+            if failures == 0:
+                cache.set(cache_key, 1, timeout=900)
+            else:
+                cache.incr(cache_key)
+            return Response(
+                {'error': 'Invalid or expired OTP'},
+                status=400,
+            )
+
+        if otp_record is not None:
+            otp_record.is_used = True
+            otp_record.save(update_fields=['is_used'])
+
+        cache.delete(cache_key)
+        tokens = get_tokens_for_user(user)
+
+        return Response({
+            'message': 'Login successful',
+            'user': UserSerializer(user).data,
+            'tokens': tokens,
+        }, status=200)
 
 class LoginView(APIView):
     def post(self, request):
@@ -487,7 +594,6 @@ class ForgotPasswordView(APIView):
                 print(f"[SMS] 2Factor: {result}")
             except Exception as e:
                 print(f"[SMS] Error: {e}")
-        print(f"[OTP] Phone: {phone_number} | OTP: {otp_code} | Sent: {sms_sent}")
         return Response({
             "message": "OTP sent successfully",
             "phone_number": phone_number,

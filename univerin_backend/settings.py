@@ -211,3 +211,13 @@ CSRF_COOKIE_SECURE = not DEBUG
 SECURE_HSTS_SECONDS = 0  # Enable after verifying Railway HTTPS proxy configuration
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SECURE_HSTS_PRELOAD = False
+
+
+# Shared database-backed cache for authentication throttling.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'univerin_login_cache',
+        'TIMEOUT': 900,
+    }
+}

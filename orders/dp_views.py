@@ -97,6 +97,14 @@ class DPOrderAcceptView(APIView):
                 status=http_status.HTTP_403_FORBIDDEN
             )
 
+        from users.play_review_otp import is_restricted_review_account
+
+        if is_restricted_review_account(request.user.phone_number):
+            return Response(
+                {'error': 'Review accounts cannot accept real deliveries'},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
+
         with transaction.atomic():
             dp = DeliveryPartner.objects.select_for_update().filter(
                 user_id=request.user.id

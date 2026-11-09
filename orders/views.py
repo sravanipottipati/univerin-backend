@@ -134,6 +134,14 @@ class PlaceOrderView(APIView):
                 {'error': 'Only buyers can place orders'},
                 status=status.HTTP_403_FORBIDDEN
             )
+        from users.play_review_otp import is_restricted_review_account
+
+        if is_restricted_review_account(request.user.phone_number):
+            return Response(
+                {'error': 'Review accounts cannot place real orders'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = PlaceOrderSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
