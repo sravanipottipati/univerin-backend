@@ -28,10 +28,12 @@ class User(AbstractBaseUser):
     )
     id            = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name     = models.CharField(max_length=100)
-    phone_number  = models.CharField(max_length=10, unique=True)
+    phone_number  = models.CharField(max_length=10, unique=True, null=True, blank=True)
     email         = models.EmailField(blank=True, null=True)
     user_type     = models.CharField(max_length=20, choices=USER_TYPES, default='buyer')
     is_active     = models.BooleanField(default=True)
+    is_deleted    = models.BooleanField(default=False, db_index=True)
+    deleted_at    = models.DateTimeField(null=True, blank=True)
     is_admin      = models.BooleanField(default=False)
     is_staff      = models.BooleanField(default=False)
     fcm_token     = models.TextField(blank=True, null=True)
@@ -105,3 +107,54 @@ class PasswordResetOTP(models.Model):
 
     def __str__(self):
         return f"{self.user.phone_number} - OTP: {self.otp}"
+
+# ─── ACCOUNT DELETION REQUEST TRACKING ────────────────────────────────────────
+
+class AccountDeletionRequest(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('rejected', 'Rejected'),
+        ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
+    )
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    # Preserve the audit record if the original user is eventually deleted.
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='deletion_requests',
+    )
+
+    account_type = models.CharField(max_length=20)
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        db_index=True,
+    )
+
+    retention_summary = models.TextField(blank=True, default='')
+    failure_reason = models.TextField(blank=True, default='')
+
+    requested_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-requested_at']
+
+    def __str__(self):
+        return f"Deletion Request {self.id} - {self.status}"
+
+from users.deletion.cleanup_models import AccountDeletionAsset

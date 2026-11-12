@@ -1,0 +1,49 @@
+"""
+Conservative vendor and delivery partner personal-data erasure.
+
+This service does not delete historical financial records or Cloudinary assets.
+Accounts with records requiring retention review are rejected.
+"""
+
+from django.db import transaction
+
+from users.deletion.worker_erasure_plan import (
+    build_vendor_erasure_plan,
+    build_delivery_partner_erasure_plan,
+)
+
+
+class WorkerErasureNotReadyError(Exception):
+    pass
+
+
+@transaction.atomic
+def erase_vendor_personal_data(user):
+    plan = build_vendor_erasure_plan(user)
+
+    if not plan["eligible_for_erasure_review"]:
+        raise WorkerErasureNotReadyError(
+            "; ".join(plan["blockers"])
+        )
+
+    # Intentionally unreachable until the retention and
+    # document-cleanup policy is implemented and tested.
+    raise WorkerErasureNotReadyError(
+        "Vendor erasure is not yet approved."
+    )
+
+
+@transaction.atomic
+def erase_delivery_partner_personal_data(user):
+    plan = build_delivery_partner_erasure_plan(user)
+
+    if not plan["eligible_for_erasure_review"]:
+        raise WorkerErasureNotReadyError(
+            "; ".join(plan["blockers"])
+        )
+
+    # Intentionally unreachable until the retention and
+    # Cloudinary document-cleanup policy is implemented and tested.
+    raise WorkerErasureNotReadyError(
+        "Delivery partner erasure is not yet approved."
+    )

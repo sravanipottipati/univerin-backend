@@ -1,0 +1,59 @@
+from django.test import TestCase
+
+from users.models import User, AccountDeletionRequest
+from users.deletion.service import create_deletion_request
+
+
+class AccountDeletionServiceTests(TestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            phone_number="9876543210",
+            password="TestPassword123!",
+            full_name="Deletion Test Buyer",
+            user_type="buyer",
+        )
+
+    def test_buyer_can_submit_deletion_request(self):
+        result = create_deletion_request(self.user)
+
+        self.assertTrue(result["created"])
+        self.assertEqual(result["request"].status, "pending")
+        self.assertEqual(AccountDeletionRequest.objects.count(), 1)
+
+    def test_duplicate_request_is_prevented(self):
+        first = create_deletion_request(self.user)
+        second = create_deletion_request(self.user)
+
+        self.assertTrue(first["created"])
+        self.assertFalse(second["created"])
+        self.assertEqual(
+            first["request"].id,
+            second["request"].id,
+        )
+        self.assertEqual(AccountDeletionRequest.objects.count(), 1)
+
+    def test_account_remains_active_after_request(self):
+        create_deletion_request(self.user)
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(self.user.is_active)
+        self.assertEqual(self.user.full_name, "Deletion Test Buyer")
+
+    def test_reviewer_account_is_rejected(self):
+        reviewer = User.objects.create_user(
+            phone_number="9999999991",
+            password="TestPassword123!",
+            full_name="Reviewer Account",
+            user_type="buyer",
+        )
+
+        with self.assertRaisesMessage(
+            ValueError,
+            "Reviewer accounts cannot request deletion.",
+        ):
+            create_deletion_request(reviewer)
+
+        self.assertEqual(AccountDeletionRequest.objects.count(), 0)
+        self.assertTrue(reviewer.is_active)

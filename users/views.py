@@ -7,7 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.utils import timezone
 from .serializers import RegisterSerializer, UserSerializer
-from .models import User, Address, PasswordResetOTP
+from .models import User, Address, PasswordResetOTP, AccountDeletionRequest
 
 
 def get_tokens_for_user(user):
@@ -106,6 +106,18 @@ def firebase_otp_login(request):
     except Exception as e:
         return Response({'error': str(e)}, status=500)
 
+
+def is_account_deletion_processing(user):
+    """Prevent registration reactivation during account deletion."""
+    if user.is_deleted:
+        return True
+
+    return AccountDeletionRequest.objects.filter(
+        user=user,
+        status__in=["processing", "completed"],
+    ).exists()
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def send_register_otp(request):
@@ -123,6 +135,11 @@ def send_register_otp(request):
         defaults={'full_name': request.data.get('full_name', ''), 'user_type': request.data.get('user_type', 'buyer'), 'is_active': False}
     )
     if not created:
+        if is_account_deletion_processing(user):
+            return Response(
+                {'error': 'This account is undergoing deletion and cannot be reactivated.'},
+                status=403,
+            )
         user.full_name = request.data.get('full_name', user.full_name)
         user.save()
     otp_code = PasswordResetOTP.generate_otp()
@@ -151,6 +168,12 @@ def verify_register_otp(request):
         user = User.objects.get(phone_number=phone_number)
     except User.DoesNotExist:
         return Response({'error': 'No account found'}, status=404)
+    if is_account_deletion_processing(user):
+        return Response(
+            {'error': 'This account is undergoing deletion and cannot be reactivated.'},
+            status=403,
+        )
+
     if user.is_active:
         return Response({
             'error': 'This account is already registered. Please login instead.'
@@ -664,37 +687,77 @@ from rest_framework.decorators import api_view, permission_classes
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def delete_account_request(request):
-    """Deactivate authenticated user account and notify admin."""
-    user = request.user
+    """Submit an authenticated account deletion request without deactivation."""
 
-    from .play_review_otp import is_restricted_review_account
-
-    if user.is_staff or user.is_admin or is_restricted_review_account(user.phone_number):
-        return Response(
-            {'error': 'Account deletion is unavailable for this account.'},
-            status=403,
-        )
+    from .deletion.service import create_deletion_request
 
     try:
-        phone = user.phone_number
-        user.is_active = False
-        user.full_name = 'Deleted User'
-        user.email     = ''
-        user.save()
-        try:
-            from django.core.mail import send_mail
-            send_mail(
-                subject=f'Account Deleted - {phone}',
-                message=f"""Account deleted by user:\nPhone: {phone}\nID: {user.id}\nTime: {__import__("datetime").datetime.now().strftime("%d %b %Y %H:%M")}""",
-                from_email='contact@univerin.in',
-                recipient_list=['contact@univerin.in'],
-                fail_silently=True,
-            )
-        except Exception:
-            pass
-        return Response({'message': 'Account deactivated successfully.'}, status=200)
-    except Exception:
-        return Response({'error': 'Failed to deactivate account. Please try again.'}, status=500)
+        result = create_deletion_request(request.user)
+    except ValueError as exc:
+        return Response(
+            {"error": str(exc)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    deletion_request = result["request"]
+    assessment = result["assessment"]
+
+    return Response(
+        {
+            "message": (
+                "Account deletion request submitted successfully."
+                if result["created"]
+                else "An active deletion request already exists."
+            ),
+            "request_id": str(deletion_request.id),
+            "request_status": deletion_request.status,
+            "created": result["created"],
+            "account_type": assessment.account_type,
+            "can_proceed": assessment.can_proceed,
+            "blockers": assessment.blockers,
+            "retained_records": assessment.retained_records,
+            "personal_data_categories": assessment.personal_data_categories,
+        },
+        status=(
+            status.HTTP_201_CREATED
+            if result["created"]
+            else status.HTTP_200_OK
+        ),
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def deletion_status(request):
+    """Return the authenticated user's latest deletion request."""
+
+    deletion_request = AccountDeletionRequest.objects.filter(
+        user=request.user
+    ).first()
+
+    if deletion_request is None:
+        return Response(
+            {"message": "No account deletion request found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    return Response(
+        {
+            "request_id": str(deletion_request.id),
+            "account_type": deletion_request.account_type,
+            "status": deletion_request.status,
+            "retention_summary": deletion_request.retention_summary,
+            "failure_reason": deletion_request.failure_reason,
+            "requested_at": deletion_request.requested_at.isoformat(),
+            "updated_at": deletion_request.updated_at.isoformat(),
+            "completed_at": (
+                deletion_request.completed_at.isoformat()
+                if deletion_request.completed_at
+                else None
+            ),
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 class VerifyOTPView(APIView):

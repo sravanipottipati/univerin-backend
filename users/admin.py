@@ -21,3 +21,43 @@ class CustomUserAdmin(admin.ModelAdmin):
             ),
         }),
     )
+
+
+# Account deletion requests: review only.
+# Actual deletion must be performed through a separate,
+# verified administrative fulfillment process.
+from .models import AccountDeletionRequest
+
+
+@admin.register(AccountDeletionRequest)
+class AccountDeletionRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "user",
+        "account_type",
+        "status",
+        "requested_at",
+        "completed_at",
+    )
+    list_filter = ("account_type", "status", "requested_at")
+    search_fields = ("user__phone_number", "user__full_name")
+    readonly_fields = (
+        "id",
+        "user",
+        "account_type",
+        "status",
+        "retention_summary",
+        "failure_reason",
+        "requested_at",
+        "completed_at",
+    )
+    ordering = ("-requested_at",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
