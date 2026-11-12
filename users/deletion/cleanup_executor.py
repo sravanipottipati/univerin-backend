@@ -76,3 +76,48 @@ def execute_cleanup_job(job_id, *, adapter=None):
         "storage_result": result,
         "requires_finalization": True,
     }
+
+
+def execute_mock_cleanup_and_finalize(job_id, *, fail=False):
+    """
+    Test-only end-to-end cleanup.
+
+    Never contacts Cloudinary or other external storage.
+    Must not be used as evidence of real storage deletion.
+    """
+    from django.conf import settings
+    from users.deletion.storage_adapter import FakeStorageAdapter
+    from users.deletion.cleanup_finalizer import finalize_cleanup_job
+
+    if not getattr(
+        settings,
+        "TESTING_ACCOUNT_DELETION_CLEANUP",
+        False,
+    ):
+        raise CleanupExecutionError(
+            "Mock account cleanup is disabled outside test environments."
+        )
+
+    adapter = FakeStorageAdapter(fail=fail)
+
+    result = execute_cleanup_job(job_id, adapter=adapter)
+
+    if result["status"] != "processing":
+        return result
+
+    if not result.get("requires_finalization"):
+        raise CleanupExecutionError(
+            "Cleanup did not request finalization."
+        )
+
+    finalized_job = finalize_cleanup_job(
+        job_id,
+        storage_result=result["storage_result"],
+    )
+
+    return {
+        "job_id": str(finalized_job.pk),
+        "status": finalized_job.status,
+        "mock_only": True,
+        "external_deletion_performed": False,
+    }
