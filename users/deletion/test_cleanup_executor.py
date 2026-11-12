@@ -53,8 +53,9 @@ class CleanupExecutorTests(TestCase):
 
         self.job.refresh_from_db()
 
-        self.assertEqual(result["status"], "failed")
-        self.assertEqual(self.job.status, "failed")
+        self.assertEqual(result["status"], "processing")
+        self.assertTrue(result["requires_reconciliation"])
+        self.assertEqual(self.job.status, "processing")
         self.assertEqual(self.job.attempts, 1)
         self.assertIsNone(self.job.completed_at)
 
@@ -64,8 +65,9 @@ class CleanupExecutorTests(TestCase):
         self.job.refresh_from_db()
         self.user.refresh_from_db()
 
-        self.assertEqual(result["status"], "failed")
-        self.assertEqual(self.job.status, "failed")
+        self.assertEqual(result["status"], "processing")
+        self.assertTrue(result["requires_reconciliation"])
+        self.assertEqual(self.job.status, "processing")
         self.assertEqual(
             self.user.profile_photo.name,
             "profile_photos/executor-test.jpg",

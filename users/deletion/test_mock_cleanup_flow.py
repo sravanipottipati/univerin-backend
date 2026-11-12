@@ -40,7 +40,7 @@ class MockCleanupFlowTests(TestCase):
         self.assertFalse(bool(self.user.profile_photo))
         self.assertFalse(self.user.is_deleted)
 
-    def test_failed_cleanup_can_be_retried(self):
+    def test_uncertain_cleanup_cannot_be_retried(self):
         failed = execute_mock_cleanup_and_finalize(
             self.job.pk,
             fail=True,
@@ -49,19 +49,22 @@ class MockCleanupFlowTests(TestCase):
         self.job.refresh_from_db()
         self.user.refresh_from_db()
 
-        self.assertEqual(failed["status"], "failed")
-        self.assertEqual(self.job.status, "failed")
+        self.assertEqual(failed["status"], "processing")
+        self.assertTrue(failed["requires_reconciliation"])
+        self.assertFalse(failed["automatic_retry_allowed"])
+        self.assertEqual(self.job.status, "processing")
         self.assertTrue(bool(self.user.profile_photo))
 
-        recovered = execute_mock_cleanup_and_finalize(
-            self.job.pk,
-            fail=False,
-        )
+        from users.deletion.job_claim import CleanupClaimError
+
+        with self.assertRaises(CleanupClaimError):
+            execute_mock_cleanup_and_finalize(
+                self.job.pk,
+                fail=False,
+            )
 
         self.job.refresh_from_db()
         self.user.refresh_from_db()
-
-        self.assertEqual(recovered["status"], "completed")
-        self.assertEqual(self.job.status, "completed")
-        self.assertEqual(self.job.attempts, 2)
-        self.assertFalse(bool(self.user.profile_photo))
+        self.assertEqual(self.job.status, "processing")
+        self.assertEqual(self.job.attempts, 1)
+        self.assertTrue(bool(self.user.profile_photo))

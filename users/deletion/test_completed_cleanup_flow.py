@@ -28,10 +28,11 @@ class CompletedCleanupFlowTests(TestCase):
         job = queue_account_deletion_assets(deletion_request)[0]
 
         # Simulated confirmation only; no Cloudinary call.
-        claim_cleanup_job(job.pk)
+        claimed = claim_cleanup_job(job.pk)
         finalize_cleanup_job(
             job.pk,
             storage_result={"result": "ok"},
+            attempt_id=claimed.attempt_id,
         )
 
         admin = User.objects.create_user(

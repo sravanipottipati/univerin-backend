@@ -51,6 +51,19 @@ class AccountDeletionAsset(models.Model):
     )
 
     attempts = models.PositiveIntegerField(default=0)
+
+    # Identifies the current worker attempt.
+    attempt_id = models.UUIDField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
+
+    # Expiration indicates that manual reconciliation is needed.
+    lease_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
     last_error = models.TextField(blank=True, default="")
 
     created_at = models.DateTimeField(auto_now_add=True)

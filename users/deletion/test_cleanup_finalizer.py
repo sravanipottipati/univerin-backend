@@ -30,11 +30,12 @@ class CleanupFinalizerTests(TestCase):
         self.job = queue_account_deletion_assets(self.request)[0]
 
     def test_successful_mock_finalization(self):
-        claim_cleanup_job(self.job.pk)
+        claimed = claim_cleanup_job(self.job.pk)
 
         finalize_cleanup_job(
             self.job.pk,
             storage_result={"result": "ok"},
+            attempt_id=claimed.attempt_id,
         )
 
         self.job.refresh_from_db()
@@ -90,3 +91,59 @@ class CleanupFinalizerTests(TestCase):
 
         self.job.refresh_from_db()
         self.assertEqual(self.job.status, "pending")
+
+
+    def test_missing_attempt_id_is_rejected(self):
+        claim_cleanup_job(self.job.pk)
+
+        with self.assertRaises(CleanupFinalizationError):
+            finalize_cleanup_job(
+                self.job.pk,
+                storage_result={"result": "ok"},
+            )
+
+        self.job.refresh_from_db()
+        self.user.refresh_from_db()
+        self.assertEqual(self.job.status, "processing")
+        self.assertTrue(bool(self.user.profile_photo))
+
+    def test_wrong_attempt_id_is_rejected(self):
+        import uuid
+
+        claim_cleanup_job(self.job.pk)
+
+        with self.assertRaises(CleanupFinalizationError):
+            finalize_cleanup_job(
+                self.job.pk,
+                storage_result={"result": "ok"},
+                attempt_id=uuid.uuid4(),
+            )
+
+        self.job.refresh_from_db()
+        self.user.refresh_from_db()
+        self.assertEqual(self.job.status, "processing")
+        self.assertTrue(bool(self.user.profile_photo))
+
+    def test_expired_lease_is_rejected(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        claimed = claim_cleanup_job(self.job.pk)
+
+        self.job.refresh_from_db()
+        self.job.lease_expires_at = (
+            timezone.now() - timedelta(minutes=1)
+        )
+        self.job.save(update_fields=["lease_expires_at"])
+
+        with self.assertRaises(CleanupFinalizationError):
+            finalize_cleanup_job(
+                self.job.pk,
+                storage_result={"result": "ok"},
+                attempt_id=claimed.attempt_id,
+            )
+
+        self.job.refresh_from_db()
+        self.user.refresh_from_db()
+        self.assertEqual(self.job.status, "processing")
+        self.assertTrue(bool(self.user.profile_photo))

@@ -30,6 +30,8 @@ def execute_cleanup_job(job_id, *, adapter=None):
 
     job = claim_cleanup_job(job_id)
 
+    attempt_id = job.attempt_id
+
     policy = get_asset_policy(job.owner_type, job.field_name)
 
     try:
@@ -52,11 +54,22 @@ def execute_cleanup_job(job_id, *, adapter=None):
                 .get(pk=job_id)
             )
 
-            locked_job.status = "failed"
-            locked_job.last_error = str(exc)
+            if (
+                locked_job.status != "processing"
+                or locked_job.attempt_id != attempt_id
+            ):
+                raise CleanupExecutionError(
+                    "Cleanup attempt is stale; refusing to update job."
+                )
+
+            # The provider may have deleted the asset before raising.
+            # Preserve processing state to block automatic retries.
+            locked_job.last_error = (
+                "Storage outcome uncertain; reconciliation required: "
+                + str(exc)
+            )
             locked_job.save(
                 update_fields=[
-                    "status",
                     "last_error",
                     "updated_at",
                 ]
@@ -64,7 +77,9 @@ def execute_cleanup_job(job_id, *, adapter=None):
 
         return {
             "job_id": str(job_id),
-            "status": "failed",
+            "status": "processing",
+            "requires_reconciliation": True,
+            "automatic_retry_allowed": False,
             "error": str(exc),
         }
 
@@ -74,6 +89,7 @@ def execute_cleanup_job(job_id, *, adapter=None):
         "job_id": str(job_id),
         "status": "processing",
         "storage_result": result,
+        "attempt_id": str(attempt_id),
         "requires_finalization": True,
     }
 
@@ -102,6 +118,9 @@ def execute_mock_cleanup_and_finalize(job_id, *, fail=False):
 
     result = execute_cleanup_job(job_id, adapter=adapter)
 
+    if result.get("requires_reconciliation"):
+        return result
+
     if result["status"] != "processing":
         return result
 
@@ -113,6 +132,7 @@ def execute_mock_cleanup_and_finalize(job_id, *, fail=False):
     finalized_job = finalize_cleanup_job(
         job_id,
         storage_result=result["storage_result"],
+        attempt_id=result["attempt_id"],
     )
 
     return {
