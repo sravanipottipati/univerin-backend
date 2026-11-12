@@ -41,7 +41,7 @@ def finalize_cleanup_job(job_id, *, storage_result, attempt_id=None):
 
     job = (
         AccountDeletionAsset.objects
-        .select_for_update()
+        .select_for_update(of=("self",))
         .select_related("deletion_request__user")
         .get(pk=job_id)
     )

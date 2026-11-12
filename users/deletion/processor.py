@@ -53,7 +53,7 @@ def process_deletion_request(request_id, *, approved_by=None):
 
     deletion_request = (
         AccountDeletionRequest.objects
-        .select_for_update()
+        .select_for_update(of=("self",))
         .select_related("user")
         .get(pk=request_id)
     )
