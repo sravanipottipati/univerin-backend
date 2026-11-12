@@ -99,9 +99,16 @@ def process_deletion_request(request_id, *, approved_by=None):
     # deletion is performed here.
     cleanup_jobs = queue_account_deletion_assets(deletion_request)
 
+    # Previously queued cleanup jobs must all be completed.
+    # Completed jobs may no longer appear in the current asset
+    # inventory because their model fields have been cleared.
+    all_cleanup_jobs = deletion_request.asset_cleanup_jobs.all()
+
+    if all_cleanup_jobs.exclude(status="completed").exists():
+        return deletion_request
+
     if cleanup_jobs:
-        # Keep the account and deletion request unchanged until
-        # external cleanup has been verified.
+        # Newly discovered assets still require cleanup.
         return deletion_request
 
     if user.user_type == "buyer":
