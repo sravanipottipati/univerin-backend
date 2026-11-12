@@ -5,6 +5,7 @@ Only call after a trusted storage adapter has confirmed deletion.
 Production integration is not enabled.
 """
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -18,6 +19,14 @@ class CleanupFinalizationError(Exception):
 
 @transaction.atomic
 def finalize_cleanup_job(job_id, *, storage_result):
+    # This legacy finalizer accepts caller-supplied confirmation.
+    # Keep it available only for isolated tests until replaced
+    # by a verified, attempt-bound production finalizer.
+    if not getattr(settings, "TESTING_ACCOUNT_DELETION_CLEANUP", False):
+        raise CleanupFinalizationError(
+            "Legacy cleanup finalization is disabled."
+        )
+
     if not isinstance(storage_result, dict):
         raise CleanupFinalizationError(
             "Missing storage deletion confirmation."
