@@ -1,0 +1,96 @@
+"""
+Transactional database finalization for asset cleanup.
+
+Only call after a trusted storage adapter has confirmed deletion.
+Production integration is not enabled.
+"""
+
+from django.db import transaction
+from django.utils import timezone
+
+from users.deletion.cleanup_models import AccountDeletionAsset
+from users.deletion.asset_policy import get_asset_policy
+
+
+class CleanupFinalizationError(Exception):
+    pass
+
+
+@transaction.atomic
+def finalize_cleanup_job(job_id, *, storage_result):
+    if not isinstance(storage_result, dict):
+        raise CleanupFinalizationError(
+            "Missing storage deletion confirmation."
+        )
+
+    if storage_result.get("result") != "ok":
+        raise CleanupFinalizationError(
+            "Storage deletion was not confirmed."
+        )
+
+    job = (
+        AccountDeletionAsset.objects
+        .select_for_update()
+        .select_related("deletion_request__user")
+        .get(pk=job_id)
+    )
+
+    if job.status != "processing":
+        raise CleanupFinalizationError(
+            "Job must be processing before finalization."
+        )
+
+    request = job.deletion_request
+    user = request.user
+
+    if user is None or request.status not in ("pending", "processing"):
+        raise CleanupFinalizationError(
+            "Deletion request is not eligible."
+        )
+
+    get_asset_policy(job.owner_type, job.field_name)
+
+    if job.owner_type == "user":
+        owner = user
+    elif job.owner_type == "vendor":
+        owner = getattr(user, "vendor", None)
+    elif job.owner_type == "delivery_partner":
+        owner = getattr(user, "delivery_partner", None)
+    else:
+        owner = None
+
+    if owner is None:
+        raise CleanupFinalizationError(
+            "Asset owner could not be verified."
+        )
+
+    owner = type(owner).objects.select_for_update().get(pk=owner.pk)
+
+    field = getattr(owner, job.field_name)
+    current_reference = (
+        getattr(field, "public_id", None)
+        or getattr(field, "name", None)
+        or str(field)
+    )
+
+    if current_reference != job.storage_reference:
+        raise CleanupFinalizationError(
+            "Asset reference changed before finalization."
+        )
+
+    setattr(owner, job.field_name, None)
+    owner.save(update_fields=[job.field_name])
+
+    job.status = "completed"
+    job.completed_at = timezone.now()
+    job.last_error = ""
+    job.save(
+        update_fields=[
+            "status",
+            "completed_at",
+            "last_error",
+            "updated_at",
+        ]
+    )
+
+    return job
