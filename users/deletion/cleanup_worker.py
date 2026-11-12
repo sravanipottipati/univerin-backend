@@ -6,6 +6,7 @@ Dry-run only. Does not contact Cloudinary or delete files.
 
 from users.deletion.cleanup_models import AccountDeletionAsset
 from users.deletion.asset_policy import get_asset_policy
+from users.deletion.asset_ownership import find_other_asset_references
 from users.deletion.cloudinary_cleanup import (
     build_cloudinary_cleanup_plan,
 )
@@ -91,6 +92,13 @@ def inspect_cleanup_job(job_id):
     if current_reference != job.storage_reference:
         raise AssetCleanupBlockedError(
             "Asset reference changed after queue creation."
+        )
+
+    duplicate_references = find_other_asset_references(job)
+
+    if duplicate_references:
+        raise AssetCleanupBlockedError(
+            "Asset reference is shared by another database record."
         )
 
     return {
