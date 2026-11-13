@@ -13,6 +13,10 @@ from django.utils import timezone
 
 from users.models import User
 from users.deletion.asset_policy import get_asset_policy
+from users.deletion.origin_reference_guard import (
+    OriginReferenceError,
+    validate_origin_reference,
+)
 from users.deletion.cleanup_models import AccountDeletionAsset
 from users.deletion.reconciliation_models import (
     AccountDeletionReconciliationAccess,
@@ -124,6 +128,11 @@ def verify_cleanup_asset(
 
         _validate_job(job, supplied_attempt)
 
+        try:
+            validate_origin_reference(job)
+        except OriginReferenceError as exc:
+            raise ReconciliationVerificationError(str(exc)) from exc
+
         policy = get_asset_policy(
             job.owner_type,
             job.field_name,
@@ -175,6 +184,11 @@ def verify_cleanup_asset(
         )
 
         _validate_job(job, supplied_attempt)
+
+        try:
+            validate_origin_reference(job)
+        except OriginReferenceError as exc:
+            raise ReconciliationVerificationError(str(exc)) from exc
 
         if (
             job.storage_reference != expected_reference

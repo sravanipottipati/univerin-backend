@@ -52,6 +52,9 @@ class VerificationConcurrencyTests(TransactionTestCase):
             user_type="buyer",
         )
 
+        user.profile_photo = "private/original.jpg"
+        user.save(update_fields=["profile_photo"])
+
         request = AccountDeletionRequest.objects.create(
             user=user,
             account_type="buyer",

@@ -46,6 +46,9 @@ class ReconciliationVerificationTests(TestCase):
             user_type="buyer",
         )
 
+        self.user.profile_photo = "private/verification-test.jpg"
+        self.user.save(update_fields=["profile_photo"])
+
         self.request = AccountDeletionRequest.objects.create(
             user=self.user,
             account_type="buyer",
@@ -83,6 +86,90 @@ class ReconciliationVerificationTests(TestCase):
             "private/verification-test.jpg",
         )
         self.assertEqual(self.job.attempt_id, self.attempt_id)
+
+    def test_original_asset_reference_cleared(self):
+        self.user.profile_photo = None
+        self.user.save(update_fields=["profile_photo"])
+
+        with self.assertRaises(ReconciliationVerificationError):
+            self.verify("absent")
+
+        self.assertFalse(
+            AccountDeletionReconciliationAudit.objects.exists()
+        )
+
+    def test_original_asset_reference_changed(self):
+        self.user.profile_photo = "private/replacement.jpg"
+        self.user.save(update_fields=["profile_photo"])
+
+        with self.assertRaises(ReconciliationVerificationError):
+            self.verify("absent")
+
+        self.assertFalse(
+            AccountDeletionReconciliationAudit.objects.exists()
+        )
+
+    def test_shared_asset_reference_rejected(self):
+        other_user = User.objects.create_user(
+            phone_number="9876549699",
+            password="TestPassword123!",
+            full_name="Other Asset Owner",
+            user_type="buyer",
+        )
+
+        other_user.profile_photo = (
+            "private/verification-test.jpg"
+        )
+        other_user.save(update_fields=["profile_photo"])
+
+        with self.assertRaises(ReconciliationVerificationError):
+            self.verify("absent")
+
+        self.assertFalse(
+            AccountDeletionReconciliationAudit.objects.exists()
+        )
+
+    def test_reference_shared_during_verification(self):
+        other_user = User.objects.create_user(
+            phone_number="9876549698",
+            password="TestPassword123!",
+            full_name="Concurrent Asset Owner",
+            user_type="buyer",
+        )
+
+        original_verify = FakeStorageVerifier.verify
+
+        def share_reference(
+            verifier,
+            reference,
+            *,
+            resource_type,
+            storage,
+        ):
+            User.objects.filter(pk=other_user.pk).update(
+                profile_photo="private/verification-test.jpg"
+            )
+
+            return original_verify(
+                verifier,
+                reference,
+                resource_type=resource_type,
+                storage=storage,
+            )
+
+        from unittest.mock import patch
+
+        with patch.object(
+            FakeStorageVerifier,
+            "verify",
+            share_reference,
+        ):
+            with self.assertRaises(ReconciliationVerificationError):
+                self.verify("absent")
+
+        self.assertFalse(
+            AccountDeletionReconciliationAudit.objects.exists()
+        )
 
     def test_asset_exists(self):
         result = self.verify("exists")
