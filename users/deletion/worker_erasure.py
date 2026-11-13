@@ -75,6 +75,7 @@ def erase_vendor_personal_data(user):
     vendor.phone_number = ""
     vendor.address = ""
     vendor.town = ""
+    vendor.state = ""
     vendor.gstin = None
     vendor.pan = None
     vendor.fssai_number = None

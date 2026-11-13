@@ -32,6 +32,7 @@ class WorkerErasureSuccessTests(TestCase):
             phone_number="9876549801",
             address="Private Street",
             town="Test Town",
+            state="Telangana",
             bank_account_number="123456789",
             pan="ABCDE1234F",
         )
@@ -56,6 +57,7 @@ class WorkerErasureSuccessTests(TestCase):
         self.assertIsNone(vendor.pan)
         self.assertEqual(vendor.shop_name, "Deleted Vendor")
         self.assertEqual(vendor.address, "")
+        self.assertEqual(vendor.state, "")
         self.assertFalse(vendor.is_open)
         self.assertEqual(deletion.status, "completed")
 
