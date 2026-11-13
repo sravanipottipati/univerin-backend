@@ -20,10 +20,7 @@ class BuyerErasureTests(TestCase):
         )
 
     def test_eligible_buyer_is_anonymized(self):
-        with patch(
-            "users.deletion.buyer_erasure.default_storage.delete"
-        ) as mock_delete:
-            erase_buyer_personal_data(self.buyer)
+        erase_buyer_personal_data(self.buyer)
 
         self.buyer.refresh_from_db()
 
@@ -33,36 +30,46 @@ class BuyerErasureTests(TestCase):
         self.assertIsNone(self.buyer.phone_number)
         self.assertEqual(self.buyer.full_name, "Deleted User")
         self.assertFalse(self.buyer.has_usable_password())
-        mock_delete.assert_not_called()
 
-    def test_existing_photo_is_deleted(self):
+    def test_existing_photo_blocks_erasure(self):
         self.buyer.profile_photo = "profile_photos/test.jpg"
         self.buyer.save(update_fields=["profile_photo"])
 
-        with patch(
-            "users.deletion.buyer_erasure.default_storage.delete"
-        ) as mock_delete:
+        with self.assertRaises(BuyerErasureNotReadyError):
             erase_buyer_personal_data(self.buyer)
-
-        mock_delete.assert_called_once_with(
-            "profile_photos/test.jpg"
-        )
-
-    def test_photo_deletion_failure_blocks_erasure(self):
-        self.buyer.profile_photo = "profile_photos/test.jpg"
-        self.buyer.save(update_fields=["profile_photo"])
-
-        with patch(
-            "users.deletion.buyer_erasure.default_storage.delete",
-            side_effect=RuntimeError("Cloudinary unavailable"),
-        ):
-            with self.assertRaises(BuyerErasureNotReadyError):
-                erase_buyer_personal_data(self.buyer)
 
         self.buyer.refresh_from_db()
 
+        self.assertTrue(self.buyer.is_active)
         self.assertFalse(self.buyer.is_deleted)
-        self.assertEqual(self.buyer.phone_number, "9876545555")
+        self.assertEqual(
+            self.buyer.profile_photo.name,
+            "profile_photos/test.jpg",
+        )
+
+    def test_photo_reference_preserved_when_erasure_blocked(self):
+        self.buyer.profile_photo = "profile_photos/test.jpg"
+        self.buyer.save(update_fields=["profile_photo"])
+
+        with patch(
+            "django.core.files.storage.default_storage.delete"
+        ) as mock_delete:
+            with self.assertRaises(BuyerErasureNotReadyError):
+                erase_buyer_personal_data(self.buyer)
+
+        mock_delete.assert_not_called()
+
+        self.buyer.refresh_from_db()
+
+        self.assertEqual(
+            self.buyer.phone_number,
+            "9876545555",
+        )
+        self.assertEqual(
+            self.buyer.profile_photo.name,
+            "profile_photos/test.jpg",
+        )
+        self.assertFalse(self.buyer.is_deleted)
 
     def test_buyer_with_review_history_cannot_be_erased(self):
         from unittest.mock import patch

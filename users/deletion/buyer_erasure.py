@@ -7,7 +7,6 @@ This function must be called inside the authorized deletion processor.
 
 from django.db import transaction
 from django.utils import timezone
-from django.core.files.storage import default_storage
 
 from orders.models import Order, RazorpayCheckout, ReturnRequest, Refund
 
@@ -39,16 +38,13 @@ def erase_buyer_personal_data(user):
             "Account has historical records requiring retention review."
         )
 
-    # Remove the externally stored profile photo before clearing its reference.
-    # A storage failure must stop account erasure.
+    # External asset cleanup must be completed through the
+    # separate cleanup and reconciliation workflow.
+    # Never delete storage objects inside this database transaction.
     if user.profile_photo and user.profile_photo.name:
-        photo_name = user.profile_photo.name
-        try:
-            default_storage.delete(photo_name)
-        except Exception as exc:
-            raise BuyerErasureNotReadyError(
-                "Profile photo cleanup failed. Account erasure stopped."
-            ) from exc
+        raise BuyerErasureNotReadyError(
+            "Profile photo requires verified external cleanup."
+        )
 
     user.addresses.all().delete()
     user.cart_items.all().delete()
