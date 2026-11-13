@@ -158,3 +158,11 @@ class AccountDeletionRequest(models.Model):
         return f"Deletion Request {self.id} - {self.status}"
 
 from users.deletion.cleanup_models import AccountDeletionAsset
+
+from users.deletion.reconciliation_models import (
+    AccountDeletionReconciliationAccess,
+)
+
+from users.deletion.reconciliation_models import (
+    AccountDeletionReconciliationAudit,
+)

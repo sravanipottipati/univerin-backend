@@ -14,16 +14,32 @@ from users.deletion.cleanup_reconciliation import (
 class CleanupReconciliationTests(TestCase):
 
     def setUp(self):
-        self.admin = SimpleNamespace(
-            is_authenticated=True,
-            is_active=True,
-            is_staff=True,
+        from users.models import User
+        from users.deletion.reconciliation_models import (
+            AccountDeletionReconciliationAccess,
         )
 
-        self.non_admin = SimpleNamespace(
-            is_authenticated=True,
+        self.admin = User.objects.create_user(
+            phone_number="9876549801",
+            password="TestPassword123!",
+            full_name="Authorized Test Administrator",
+            user_type="admin",
             is_active=True,
-            is_staff=False,
+            is_staff=True,
+            is_admin=True,
+        )
+
+        AccountDeletionReconciliationAccess.objects.create(
+            administrator=self.admin,
+            granted_by=self.admin,
+            is_enabled=True,
+        )
+
+        self.non_admin = User.objects.create_user(
+            phone_number="9876549802",
+            password="TestPassword123!",
+            full_name="Unauthorized Test User",
+            user_type="buyer",
         )
 
     def test_unauthorized_access_rejected(self):
@@ -36,11 +52,9 @@ class CleanupReconciliationTests(TestCase):
                     )
 
     def test_inactive_admin_rejected(self):
-        inactive_admin = SimpleNamespace(
-            is_authenticated=True,
-            is_active=False,
-            is_staff=True,
-        )
+        inactive_admin = self.admin
+        inactive_admin.is_active = False
+        inactive_admin.save(update_fields=["is_active"])
 
         with self.assertRaises(CleanupReconciliationError):
             inspect_cleanup_for_reconciliation(
@@ -203,3 +217,47 @@ class CleanupReconciliationTests(TestCase):
         self.assertTrue(result["outcome_uncertain"])
         self.assertTrue(result["requires_reconciliation"])
         self.assertFalse(result["automatic_retry_allowed"])
+
+    def test_staff_admin_without_grant_is_rejected(self):
+        from users.models import User
+
+        other_admin = User.objects.create_user(
+            phone_number="9876549803",
+            password="TestPassword123!",
+            full_name="Unapproved Administrator",
+            user_type="admin",
+            is_active=True,
+            is_staff=True,
+            is_admin=True,
+        )
+
+        with self.assertRaises(CleanupReconciliationError):
+            inspect_cleanup_for_reconciliation(
+                "00000000-0000-0000-0000-000000000000",
+                admin=other_admin,
+            )
+
+    def test_disabled_grant_is_rejected(self):
+        from users.deletion.reconciliation_models import (
+            AccountDeletionReconciliationAccess,
+        )
+
+        AccountDeletionReconciliationAccess.objects.filter(
+            administrator=self.admin,
+        ).update(is_enabled=False)
+
+        with self.assertRaises(CleanupReconciliationError):
+            inspect_cleanup_for_reconciliation(
+                "00000000-0000-0000-0000-000000000000",
+                admin=self.admin,
+            )
+
+    def test_staff_access_removed_is_rejected(self):
+        self.admin.is_staff = False
+        self.admin.save(update_fields=["is_staff"])
+
+        with self.assertRaises(CleanupReconciliationError):
+            inspect_cleanup_for_reconciliation(
+                "00000000-0000-0000-0000-000000000000",
+                admin=self.admin,
+            )
