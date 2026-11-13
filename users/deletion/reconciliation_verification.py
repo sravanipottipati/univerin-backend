@@ -157,7 +157,7 @@ def verify_cleanup_asset(
             AccountDeletionReconciliationAudit.Decision.ASSET_STILL_EXISTS
         ),
         "absent": (
-            AccountDeletionReconciliationAudit.Decision.DELETION_CONFIRMED
+            AccountDeletionReconciliationAudit.Decision.ASSET_ABSENT_OBSERVED
         ),
         "unknown": (
             AccountDeletionReconciliationAudit.Decision.INCONCLUSIVE

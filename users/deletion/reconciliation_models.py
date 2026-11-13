@@ -45,6 +45,7 @@ class AccountDeletionReconciliationAudit(models.Model):
     class Decision(models.TextChoices):
         INVESTIGATING = "investigating", "Investigating"
         DELETION_CONFIRMED = "deletion_confirmed", "Deletion confirmed"
+        ASSET_ABSENT_OBSERVED = "asset_absent_observed", "Asset absent observed"
         ASSET_STILL_EXISTS = "asset_still_exists", "Asset still exists"
         INCONCLUSIVE = "inconclusive", "Inconclusive"
 

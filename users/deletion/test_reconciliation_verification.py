@@ -101,7 +101,7 @@ class ReconciliationVerificationTests(TestCase):
         )
         self.assertEqual(
             audit.decision,
-            AccountDeletionReconciliationAudit.Decision.DELETION_CONFIRMED,
+            AccountDeletionReconciliationAudit.Decision.ASSET_ABSENT_OBSERVED,
         )
 
     def test_unknown_state(self):
