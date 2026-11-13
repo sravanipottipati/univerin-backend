@@ -63,3 +63,44 @@ class AdminDeletionAuthorizationTests(TestCase):
         )
         self.assertIsNotNone(self.deletion_request.completed_at)
 
+
+
+class RevokedAdministratorAuthorizationTests(TestCase):
+    def test_stale_administrator_object_cannot_authorize_deletion(self):
+        from users.deletion.service import create_deletion_request
+        from users.deletion.processor import process_deletion_request
+
+        administrator = User.objects.create_superuser(
+            phone_number="9876549711",
+            password="TestPassword123!",
+            full_name="Revoked Administrator",
+            user_type="admin",
+        )
+
+        buyer = User.objects.create_user(
+            phone_number="9876549712",
+            password="TestPassword123!",
+            full_name="Protected Buyer",
+            user_type="buyer",
+        )
+
+        deletion_request = create_deletion_request(buyer)["request"]
+
+        # Revoke privileges without refreshing the Python object.
+        User.objects.filter(pk=administrator.pk).update(
+            is_staff=False,
+            is_admin=False,
+        )
+
+        with self.assertRaises(PermissionError):
+            process_deletion_request(
+                deletion_request.pk,
+                approved_by=administrator,
+            )
+
+        buyer.refresh_from_db()
+        deletion_request.refresh_from_db()
+
+        self.assertTrue(buyer.is_active)
+        self.assertFalse(buyer.is_deleted)
+        self.assertEqual(deletion_request.status, "pending")

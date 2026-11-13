@@ -12,7 +12,7 @@ Account deletion processor.
 from django.db import transaction
 from django.utils import timezone
 
-from users.models import AccountDeletionRequest
+from users.models import AccountDeletionRequest, User
 from users.deletion.retention import assess_account_deletion
 from users.deletion.cleanup_queue import queue_account_deletion_assets
 from users.deletion.erasure_plan import build_buyer_erasure_plan
@@ -40,12 +40,20 @@ def process_deletion_request(request_id, *, approved_by=None):
     Accounts with protected uploaded assets must remain pending.
     """
 
+    # Authorization must use current database state, not a
+    # potentially stale administrator object.
+    administrator_id = getattr(approved_by, "pk", None)
+
     if (
-        approved_by is None
+        administrator_id is None
         or not getattr(approved_by, "is_authenticated", False)
-        or not getattr(approved_by, "is_active", False)
-        or not getattr(approved_by, "is_staff", False)
-        or not getattr(approved_by, "is_admin", False)
+        or not User.objects.filter(
+            pk=administrator_id,
+            is_active=True,
+            is_staff=True,
+            is_admin=True,
+            is_deleted=False,
+        ).exists()
     ):
         raise PermissionError(
             "Only an active administrator can authorize account deletion."
