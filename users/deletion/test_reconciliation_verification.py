@@ -149,3 +149,128 @@ class ReconciliationVerificationTests(TestCase):
     def test_fake_verifier_disabled_outside_tests(self):
         with self.assertRaises(ReconciliationVerificationError):
             self.verify("absent")
+
+    def test_reference_changed_during_verification(self):
+        job_id = self.job.pk
+
+        class ChangingReferenceVerifier:
+            def verify(inner_self, reference, *, resource_type, storage):
+                AccountDeletionAsset.objects.filter(
+                    pk=job_id
+                ).update(
+                    storage_reference="private/replaced.jpg"
+                )
+
+                return StorageVerificationResult(
+                    state="absent",
+                    provider=storage,
+                    evidence_reference="mock-stale-reference",
+                )
+
+        # A custom verifier is rejected by the production-facing
+        # injection boundary before it can run.
+        with self.assertRaises(ReconciliationVerificationError):
+            self.verify(
+                verifier=ChangingReferenceVerifier()
+            )
+
+        self.assertFalse(
+            AccountDeletionReconciliationAudit.objects.exists()
+        )
+
+    def test_revoked_grant_rejected(self):
+        self.grant.is_enabled = False
+        self.grant.save(update_fields=["is_enabled"])
+
+        with self.assertRaises(ReconciliationVerificationError):
+            self.verify("absent")
+
+        self.assertFalse(
+            AccountDeletionReconciliationAudit.objects.exists()
+        )
+
+    def test_reference_change_during_verification_is_rejected(self):
+        job_id = self.job.pk
+
+        original_verify = FakeStorageVerifier.verify
+
+        def change_reference(
+            verifier,
+            reference,
+            *,
+            resource_type,
+            storage,
+        ):
+            AccountDeletionAsset.objects.filter(
+                pk=job_id
+            ).update(
+                storage_reference="private/changed-during-verification.jpg"
+            )
+
+            return original_verify(
+                verifier,
+                reference,
+                resource_type=resource_type,
+                storage=storage,
+            )
+
+        from unittest.mock import patch
+
+        with patch.object(
+            FakeStorageVerifier,
+            "verify",
+            change_reference,
+        ):
+            with self.assertRaises(ReconciliationVerificationError):
+                self.verify("absent")
+
+        self.assert_job_reference_changed()
+        self.assertFalse(
+            AccountDeletionReconciliationAudit.objects.exists()
+        )
+
+    def assert_job_reference_changed(self):
+        self.job.refresh_from_db()
+        self.assertEqual(
+            self.job.storage_reference,
+            "private/changed-during-verification.jpg",
+        )
+
+    def test_grant_revoked_during_verification_is_rejected(self):
+        grant_id = self.grant.pk
+
+        original_verify = FakeStorageVerifier.verify
+
+        def revoke_grant(
+            verifier,
+            reference,
+            *,
+            resource_type,
+            storage,
+        ):
+            AccountDeletionReconciliationAccess.objects.filter(
+                pk=grant_id
+            ).update(is_enabled=False)
+
+            return original_verify(
+                verifier,
+                reference,
+                resource_type=resource_type,
+                storage=storage,
+            )
+
+        from unittest.mock import patch
+
+        with patch.object(
+            FakeStorageVerifier,
+            "verify",
+            revoke_grant,
+        ):
+            with self.assertRaises(ReconciliationVerificationError):
+                self.verify("absent")
+
+        self.grant.refresh_from_db()
+        self.assertFalse(self.grant.is_enabled)
+        self.assertFalse(
+            AccountDeletionReconciliationAudit.objects.exists()
+        )
