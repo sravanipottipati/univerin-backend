@@ -114,7 +114,7 @@ def is_account_deletion_processing(user):
 
     return AccountDeletionRequest.objects.filter(
         user=user,
-        status__in=["processing", "completed"],
+        status__in=["pending", "processing", "completed"],
     ).exists()
 
 
@@ -221,6 +221,13 @@ def send_login_otp(request):
         return Response({'error': 'No account found with this phone number. Please register first.'}, status=404)
     if not user.is_active:
         return Response({'error': 'This account has been deactivated.'}, status=403)
+
+    if is_account_deletion_processing(user):
+        return Response(
+            {'error': 'This account has a deletion request and cannot log in.'},
+            status=403,
+        )
+
     # Limit OTP requests per phone number to reduce SMS abuse.
     import hashlib
     from django.core.cache import cache
@@ -337,6 +344,12 @@ def verify_login_otp(request):
         if not user.is_active:
             return Response({'error': 'This account is deactivated'}, status=403)
 
+        if is_account_deletion_processing(user):
+            return Response(
+                {'error': 'This account has a deletion request and cannot log in.'},
+                status=403,
+            )
+
         valid = False
         otp_record = None
 
@@ -385,6 +398,12 @@ class LoginView(APIView):
         password     = request.data.get('password')
         user         = authenticate(request, phone_number=phone_number, password=password)
         if user:
+            if is_account_deletion_processing(user):
+                return Response(
+                    {'error': 'This account has a deletion request and cannot log in.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             tokens = get_tokens_for_user(user)
             return Response({
                 'message': 'Login successful',

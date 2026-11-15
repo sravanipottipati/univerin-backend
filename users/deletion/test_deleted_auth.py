@@ -24,3 +24,19 @@ class DeletedAccountAuthenticationTests(TestCase):
 
         with self.assertRaises(AuthenticationFailed):
             auth.get_user(token)
+
+    def test_deactivated_account_cannot_authenticate_with_jwt(self):
+        user = User.objects.create_user(
+            phone_number="9876546667",
+            password="TestPassword123!",
+            full_name="Deactivated Test User",
+            user_type="buyer",
+            is_active=False,
+            is_deleted=False,
+        )
+
+        token = AccessToken.for_user(user)
+        auth = ActiveAccountJWTAuthentication()
+
+        with self.assertRaises(AuthenticationFailed):
+            auth.get_user(token)

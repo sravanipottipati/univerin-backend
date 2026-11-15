@@ -16,4 +16,15 @@ class ActiveAccountJWTAuthentication(JWTAuthentication):
                 code="account_deleted",
             )
 
+        from users.models import AccountDeletionRequest
+
+        if AccountDeletionRequest.objects.filter(
+            user=user,
+            status__in=["pending", "processing", "completed"],
+        ).exists():
+            raise AuthenticationFailed(
+                "This account has a deletion request and cannot access the app.",
+                code="account_deletion_processing",
+            )
+
         return user

@@ -95,12 +95,7 @@ class AccountDeletionAPITests(APITestCase):
         second = self.client.post(self.request_url, {}, format="json")
 
         self.assertEqual(first.status_code, 201)
-        self.assertEqual(second.status_code, 200)
-        self.assertFalse(second.data["created"])
-        self.assertEqual(
-            first.data["request_id"],
-            second.data["request_id"],
-        )
+        self.assertEqual(second.status_code, 401)
         self.assertEqual(AccountDeletionRequest.objects.count(), 1)
 
     def test_deletion_status_returns_latest_request(self):
@@ -108,8 +103,7 @@ class AccountDeletionAPITests(APITestCase):
 
         response = self.client.get(self.status_url)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["status"], "pending")
+        self.assertEqual(response.status_code, 401)
 
     def test_account_remains_active_after_api_request(self):
         self.client.post(self.request_url, {}, format="json")

@@ -135,3 +135,70 @@ class BuyerErasureTests(TestCase):
             job.storage_reference,
             "profile_photos/test.jpg",
         )
+    def test_phone_number_can_be_reused_after_erasure(self):
+        original_phone = self.buyer.phone_number
+
+        erase_buyer_personal_data(self.buyer)
+        self.buyer.refresh_from_db()
+
+        self.assertIsNone(self.buyer.phone_number)
+        self.assertTrue(self.buyer.is_deleted)
+
+        new_buyer = User.objects.create_user(
+            phone_number=original_phone,
+            password="NewPassword123!",
+            full_name="New Buyer",
+            user_type="buyer",
+        )
+
+        self.assertNotEqual(new_buyer.pk, self.buyer.pk)
+        self.assertEqual(new_buyer.phone_number, original_phone)
+        self.assertTrue(new_buyer.is_active)
+
+    def test_registration_with_same_phone_after_erasure(self):
+        from rest_framework.test import APIClient
+        from users.models import PasswordResetOTP
+
+        client = APIClient()
+        original_phone = self.buyer.phone_number
+        old_user_id = self.buyer.pk
+
+        erase_buyer_personal_data(self.buyer)
+
+        with patch.dict("os.environ", {"TWOFACTOR_API_KEY": ""}):
+            response = client.post(
+                "/api/users/send-register-otp/",
+                {
+                    "phone_number": original_phone,
+                    "full_name": "New Buyer",
+                    "user_type": "buyer",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+
+        new_user = User.objects.get(phone_number=original_phone)
+        self.assertNotEqual(new_user.pk, old_user_id)
+
+        otp = PasswordResetOTP.objects.filter(
+            user=new_user,
+            is_used=False,
+        ).latest("created_at")
+
+        response = client.post(
+            "/api/users/verify-register-otp/",
+            {
+                "phone_number": original_phone,
+                "otp": otp.otp,
+                "full_name": "New Buyer",
+                "user_type": "buyer",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("tokens", response.data)
+
+        new_user.refresh_from_db()
+        self.assertTrue(new_user.is_active)

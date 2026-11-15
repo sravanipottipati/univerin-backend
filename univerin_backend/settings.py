@@ -181,17 +181,37 @@ import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': 'dxavm870k',
-    'API_KEY':    '993912218864416',      # ← PASTE YOUR KEY
-    'API_SECRET': '110YaWx20tK1I5pm8KPTCyx3AEw',   # ← PASTE YOUR SECRET
-}
+# Cloudinary supports CLOUDINARY_URL (Railway) or separate environment variables.
+from urllib.parse import urlparse, unquote
+
+cloudinary_url = os.environ.get("CLOUDINARY_URL")
+
+if cloudinary_url:
+    parsed = urlparse(cloudinary_url)
+    if parsed.scheme != "cloudinary" or not all(
+        [parsed.username, parsed.password, parsed.hostname]
+    ):
+        raise ValueError("Invalid CLOUDINARY_URL configuration")
+
+    cloudinary_credentials = {
+        "CLOUD_NAME": parsed.hostname,
+        "API_KEY": unquote(parsed.username),
+        "API_SECRET": unquote(parsed.password),
+    }
+else:
+    cloudinary_credentials = {
+        "CLOUD_NAME": os.environ["CLOUDINARY_CLOUD_NAME"],
+        "API_KEY": os.environ["CLOUDINARY_API_KEY"],
+        "API_SECRET": os.environ["CLOUDINARY_API_SECRET"],
+    }
+
+CLOUDINARY_STORAGE = cloudinary_credentials
 
 cloudinary.config(
-    cloud_name = 'dxavm870k',
-    api_key    = '993912218864416',       # ← PASTE YOUR KEY
-    api_secret = '110YaWx20tK1I5pm8KPTCyx3AEw',    # ← PASTE YOUR SECRET
-    secure     = True
+    cloud_name=CLOUDINARY_STORAGE["CLOUD_NAME"],
+    api_key=CLOUDINARY_STORAGE["API_KEY"],
+    api_secret=CLOUDINARY_STORAGE["API_SECRET"],
+    secure=True,
 )
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
@@ -224,3 +244,12 @@ CACHES = {
         'TIMEOUT': 900,
     }
 }
+
+# Account deletion: Cloudinary read-only verification.
+# Disabled by default. No storage deletion is enabled by this flag.
+ACCOUNT_DELETION_CLOUDINARY_VERIFICATION_ENABLED = (
+    os.environ.get(
+        "ACCOUNT_DELETION_CLOUDINARY_VERIFICATION_ENABLED",
+        "false",
+    ).lower() in ("1", "true", "yes")
+)
