@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from users.models import User, AccountDeletionRequest
 from users.deletion.cleanup_queue import queue_account_deletion_assets
@@ -9,6 +9,7 @@ from users.deletion.cleanup_finalizer import (
 )
 
 
+@override_settings(TESTING_ACCOUNT_DELETION_CLEANUP=True)
 class CleanupFinalizerTests(TestCase):
 
     def setUp(self):

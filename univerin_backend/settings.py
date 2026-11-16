@@ -106,7 +106,7 @@ DATABASES = {
 # Dedicated local test database
 if os.environ.get("UNIVERIN_TEST_DB") == "1":
     DATABASES["default"]["TEST"] = {
-        "NAME": "test_univerin",
+        "NAME": "univerin_deletion_test_20261115",
     }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -253,4 +253,27 @@ ACCOUNT_DELETION_CLOUDINARY_VERIFICATION_ENABLED = (
         "ACCOUNT_DELETION_CLOUDINARY_VERIFICATION_ENABLED",
         "false",
     ).lower() in ("1", "true", "yes")
+)
+
+# Automatic account deletion worker.
+# Disabled by default. Enabling this flag alone does not execute deletions.
+# The worker must independently enforce authorization and safety checks.
+ACCOUNT_DELETION_AUTOMATIC_ENABLED = (
+    os.environ.get("ACCOUNT_DELETION_AUTOMATIC_ENABLED", "False") == "True"
+)
+
+
+# Explicit production authorization for the automatic deletion worker.
+# Keep False until production rollout is approved.
+ACCOUNT_DELETION_PRODUCTION_EXECUTION_ALLOWED = (
+    os.environ.get(
+        "ACCOUNT_DELETION_PRODUCTION_EXECUTION_ALLOWED",
+        "False",
+    ) == "True"
+)
+
+
+# Railway environment verification for automatic account deletion.
+ACCOUNT_DELETION_RAILWAY_ENVIRONMENT = os.environ.get(
+    "RAILWAY_ENVIRONMENT_NAME", ""
 )

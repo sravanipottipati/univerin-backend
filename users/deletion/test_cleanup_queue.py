@@ -117,3 +117,41 @@ class CleanupQueueTests(TestCase):
             AccountDeletionAsset.objects.count(),
             0,
         )
+
+    def test_wrong_cloudinary_folder_is_rejected(self):
+        self.vendor.banner_image = (
+            "univerin/dp_documents/pan/document123"
+        )
+        self.vendor.save()
+
+        with self.assertRaises(ValueError):
+            queue_account_deletion_assets(
+                self.deletion_request
+            )
+
+        self.assertEqual(
+            AccountDeletionAsset.objects.count(),
+            0,
+        )
+
+    def test_valid_cloudinary_banner_is_accepted(self):
+        self.vendor.banner_image = (
+            "univerin/shop_banners/banner123"
+        )
+        self.vendor.save()
+
+        jobs = queue_account_deletion_assets(
+            self.deletion_request
+        )
+
+        self.assertEqual(len(jobs), 2)
+
+        banner_job = next(
+            job for job in jobs
+            if job.field_name == "banner_image"
+        )
+
+        self.assertEqual(
+            banner_job.storage_reference,
+            "univerin/shop_banners/banner123",
+        )

@@ -46,6 +46,36 @@ class AdminDeletionAuthorizationTests(TestCase):
             "pending",
         )
 
+
+    def test_admin_cannot_delete_restricted_reviewer_account(self):
+        from users.models import AccountDeletionRequest
+
+        reviewer = User.objects.create_user(
+            phone_number="9999999991",
+            password="TestPassword123!",
+            full_name="Protected Reviewer",
+            user_type="buyer",
+        )
+
+        deletion_request = AccountDeletionRequest.objects.create(
+            user=reviewer,
+            account_type="buyer",
+            status="pending",
+        )
+
+        with self.assertRaises((PermissionError, ValueError)):
+            process_deletion_request(
+                deletion_request.pk,
+                approved_by=self.admin,
+            )
+
+        reviewer.refresh_from_db()
+        deletion_request.refresh_from_db()
+
+        self.assertTrue(reviewer.is_active)
+        self.assertFalse(reviewer.is_deleted)
+        self.assertEqual(deletion_request.status, "pending")
+
     def test_admin_can_process_eligible_buyer(self):
         process_deletion_request(
             self.deletion_request.id,

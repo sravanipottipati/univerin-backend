@@ -53,6 +53,58 @@ class AccountDeletionRequestAdmin(admin.ModelAdmin):
     )
     ordering = ("-requested_at",)
 
+    actions = ["process_selected_deletion_requests"]
+
+    def has_view_permission(self, request, obj=None):
+        return bool(
+            request.user.is_active
+            and request.user.is_staff
+            and getattr(request.user, "is_admin", False)
+        )
+
+    def has_module_permission(self, request):
+        return self.has_view_permission(request)
+
+    @admin.action(description="Process selected deletion requests")
+    def process_selected_deletion_requests(self, request, queryset):
+        from django.contrib import messages
+        from users.deletion.processor import process_deletion_request
+
+        if not self.has_view_permission(request):
+            self.message_user(
+                request,
+                "Administrator authorization required.",
+                level=messages.ERROR,
+            )
+            return
+
+        completed = 0
+        pending = 0
+        failed = 0
+
+        for deletion_request in queryset:
+            try:
+                result = process_deletion_request(
+                    deletion_request.pk,
+                    approved_by=request.user,
+                )
+                if result.status == "completed":
+                    completed += 1
+                else:
+                    pending += 1
+            except Exception:
+                failed += 1
+
+        self.message_user(
+            request,
+            (
+                f"Completed: {completed}; "
+                f"Pending cleanup: {pending}; "
+                f"Blocked or failed: {failed}."
+            ),
+            level=messages.WARNING if failed else messages.INFO,
+        )
+
     def has_add_permission(self, request):
         return False
 

@@ -22,6 +22,11 @@ from users.deletion.reconciliation_models import (
     AccountDeletionReconciliationAccess,
     AccountDeletionReconciliationAudit,
 )
+from cloudinary import api as cloudinary_api
+
+from users.deletion.cloudinary_readonly_verifier import (
+    CloudinaryReadOnlyVerifier,
+)
 from users.deletion.storage_verification import (
     DisabledStorageVerifier,
     FakeStorageVerifier,
@@ -95,14 +100,28 @@ def verify_cleanup_asset(
             "Invalid cleanup attempt ID."
         ) from None
 
-    # Only the built-in fake verifier is permitted in test mode.
-    # Production verification remains disabled.
+    # Real Cloudinary verification is explicitly feature-gated.
+    # It performs read-only Admin API requests only.
     if verifier is None:
-        verifier = DisabledStorageVerifier()
+        if getattr(
+            settings,
+            "ACCOUNT_DELETION_CLOUDINARY_VERIFICATION_ENABLED",
+            False,
+        ):
+            verifier = CloudinaryReadOnlyVerifier(
+                client=cloudinary_api,
+            )
+        else:
+            verifier = DisabledStorageVerifier()
+
+    # Fake verification remains restricted to test environments.
     elif (
-        not getattr(settings, "TESTING_ACCOUNT_DELETION_CLEANUP", False)
-        or type(verifier) is not FakeStorageVerifier
+        getattr(settings, "TESTING_ACCOUNT_DELETION_CLEANUP", False)
+        and type(verifier) is FakeStorageVerifier
     ):
+        pass
+
+    else:
         raise ReconciliationVerificationError(
             "Injected storage verification is disabled."
         )
