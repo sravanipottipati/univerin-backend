@@ -7,7 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.utils import timezone
 from .serializers import RegisterSerializer, UserSerializer
-from .models import User, Address, PasswordResetOTP, AccountDeletionRequest
+from .models import User, Address, PasswordResetOTP, AccountDeletionRequest, AccountDeletionAsset
 
 
 def get_tokens_for_user(user):
@@ -93,6 +93,12 @@ def firebase_otp_login(request):
         if not user.is_active:
             return Response({'error': 'This account has been deactivated.'}, status=403)
 
+        if is_account_deletion_processing(user):
+            return Response(
+                {'error': 'This account is undergoing deletion and cannot log in.'},
+                status=403,
+            )
+
         tokens = get_tokens_for_user(user)
         return Response({
             'message': 'Login successful',
@@ -108,13 +114,23 @@ def firebase_otp_login(request):
 
 
 def is_account_deletion_processing(user):
-    """Prevent registration reactivation during account deletion."""
+    """Block access after deletion cleanup begins."""
     if user.is_deleted:
         return True
 
-    return AccountDeletionRequest.objects.filter(
-        user=user,
-        status__in=["pending", "processing", "completed"],
+    deletion_requests = AccountDeletionRequest.objects.filter(
+        user=user
+    )
+
+    if deletion_requests.filter(
+        status__in=["processing", "completed"]
+    ).exists():
+        return True
+
+    return AccountDeletionAsset.objects.filter(
+        deletion_request__user=user,
+        deletion_request__status__in=["pending", "processing"],
+        attempts__gt=0,
     ).exists()
 
 
