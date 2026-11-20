@@ -200,3 +200,89 @@ class AutomaticDeletionWorkerTests(TestCase):
         self.assertTrue(buyer.is_active)
         self.assertFalse(buyer.is_deleted)
         self.assertEqual(deletion_request.status, "pending")
+
+    @override_settings(ACCOUNT_DELETION_AUTOMATIC_ENABLED=True)
+    def test_worker_processes_only_specified_request(self):
+        selected = User.objects.create_user(
+            phone_number="9876548821",
+            password="TestPassword123!",
+            full_name="Selected Test Buyer",
+            user_type="buyer",
+        )
+        other = User.objects.create_user(
+            phone_number="9876548822",
+            password="TestPassword123!",
+            full_name="Other Test Buyer",
+            user_type="buyer",
+        )
+
+        selected_request = AccountDeletionRequest.objects.create(
+            user=selected, account_type="buyer", status="pending"
+        )
+        other_request = AccountDeletionRequest.objects.create(
+            user=other, account_type="buyer", status="pending"
+        )
+
+        output = StringIO()
+        call_command(
+            "process_automatic_deletions",
+            execute=True,
+            request_id=str(selected_request.pk),
+            stdout=output,
+        )
+
+        selected.refresh_from_db()
+        other.refresh_from_db()
+        selected_request.refresh_from_db()
+        other_request.refresh_from_db()
+
+        self.assertTrue(selected.is_deleted)
+        self.assertEqual(selected_request.status, "completed")
+        self.assertFalse(other.is_deleted)
+        self.assertTrue(other.is_active)
+        self.assertEqual(other_request.status, "pending")
+        self.assertIn(str(selected_request.pk), output.getvalue())
+        self.assertNotIn(str(other_request.pk), output.getvalue())
+
+    @override_settings(ACCOUNT_DELETION_AUTOMATIC_ENABLED=True)
+    def test_worker_rejects_invalid_request_id(self):
+        from django.core.management.base import CommandError
+
+        with self.assertRaisesMessage(
+            CommandError, "Invalid deletion request UUID"
+        ):
+            call_command(
+                "process_automatic_deletions",
+                execute=True,
+                request_id="invalid-uuid",
+                stdout=StringIO(),
+            )
+
+    @override_settings(ACCOUNT_DELETION_AUTOMATIC_ENABLED=True)
+    def test_worker_rejects_unknown_request_id(self):
+        from django.core.management.base import CommandError
+        from uuid import uuid4
+
+        with self.assertRaisesMessage(
+            CommandError,
+            "Specified deletion request was not found or is not pending",
+        ):
+            call_command(
+                "process_automatic_deletions",
+                execute=True,
+                request_id=str(uuid4()),
+                stdout=StringIO(),
+            )
+
+    def test_worker_rejects_request_filter_in_dry_run(self):
+        from django.core.management.base import CommandError
+        from uuid import uuid4
+
+        with self.assertRaisesMessage(
+            CommandError, "--request-id requires --execute"
+        ):
+            call_command(
+                "process_automatic_deletions",
+                request_id=str(uuid4()),
+                stdout=StringIO(),
+            )
