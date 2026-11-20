@@ -42,3 +42,24 @@ class StorageAdapterTests(SimpleTestCase):
             )
 
         self.assertEqual(adapter.deleted_references, [])
+
+    def test_django_storage_none_return_is_rejected(self):
+        from unittest.mock import patch
+        from users.deletion.storage_adapter import CloudinaryStorageAdapter
+
+        reference = "profile_photos/test.jpg"
+
+        with patch(
+            "users.deletion.storage_adapter.default_storage.delete",
+            return_value=None,
+        ) as mocked_delete:
+            with self.assertRaises(StorageCleanupError):
+                CloudinaryStorageAdapter().delete(
+                    reference,
+                    resource_type="image",
+                    storage="django",
+                    owner_type="user",
+                    field_name="profile_photo",
+                )
+
+        mocked_delete.assert_called_once_with(reference)

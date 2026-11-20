@@ -199,6 +199,24 @@ class AutomaticDeletionProcessorTests(TestCase):
         self.assertIsNone(deletion_request.completed_at)
 
     @override_settings(ACCOUNT_DELETION_AUTOMATIC_ENABLED=True)
+    def test_buyer_with_uploaded_photo_requires_verified_cleanup(self):
+        from users.deletion.processor import DeletionBlockedError
+
+        self.buyer.profile_photo = "profile_photos/automatic-test.jpg"
+        self.buyer.save(update_fields=["profile_photo"])
+
+        with self.assertRaises(DeletionBlockedError):
+            process_automatic_deletion_request(self.request.pk)
+
+        self.buyer.refresh_from_db()
+        self.request.refresh_from_db()
+
+        self.assertTrue(self.buyer.is_active)
+        self.assertFalse(self.buyer.is_deleted)
+        self.assertTrue(bool(self.buyer.profile_photo))
+        self.assertEqual(self.request.status, "pending")
+
+    @override_settings(ACCOUNT_DELETION_AUTOMATIC_ENABLED=True)
     def test_vendor_with_wallet_balance_is_not_automatically_deleted(self):
         from decimal import Decimal
         from vendors.models import Vendor
