@@ -57,6 +57,9 @@ def admin_stats(request):
 @permission_classes([IsAuthenticated])
 def admin_sellers_list(request):
     """Admin gets all sellers with FSSAI details"""
+    if request.user.user_type != 'admin':
+        return Response({'error': 'Admin access required'}, status=403)
+
     from vendors.models import Vendor
     vendors = Vendor.objects.all().order_by('-created_at')
     data = []
@@ -81,6 +84,9 @@ def admin_sellers_list(request):
 @permission_classes([IsAuthenticated])
 def admin_verify_seller(request, vendor_id):
     """Admin approves or rejects seller"""
+    if request.user.user_type != 'admin':
+        return Response({'error': 'Admin access required'}, status=403)
+
     from vendors.models import Vendor
     try:
         vendor = Vendor.objects.get(id=vendor_id)
