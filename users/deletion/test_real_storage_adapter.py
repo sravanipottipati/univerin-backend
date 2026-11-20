@@ -56,9 +56,7 @@ class RealStorageAdapterTests(SimpleTestCase):
 
     @patch("users.deletion.storage_adapter.default_storage.delete")
     def test_django_deletion_failure(self, mock_delete):
-        mock_delete.side_effect = RuntimeError(
-            "Simulated storage deletion failure"
-        )
+        mock_delete.return_value = False
 
         with self.assertRaises(StorageCleanupError):
             self.adapter.delete(

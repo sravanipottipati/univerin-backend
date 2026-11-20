@@ -93,7 +93,12 @@ class CloudinaryStorageAdapter:
                 # indicates that the deletion was attempted without
                 # a reported exception. Independent provider
                 # verification is still required before finalization.
-                default_storage.delete(reference)
+                deletion_result = default_storage.delete(reference)
+
+                if deletion_result is not True:
+                    raise StorageCleanupError(
+                        "Cloudinary storage did not confirm deletion."
+                    )
 
             elif storage == "cloudinary":
 
