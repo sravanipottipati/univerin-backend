@@ -20,7 +20,7 @@ class ActiveAccountJWTAuthentication(JWTAuthentication):
 
         if AccountDeletionRequest.objects.filter(
             user=user,
-            status__in=["pending", "processing", "completed"],
+            status__in=["processing", "completed"],
         ).exists():
             raise AuthenticationFailed(
                 "This account has a deletion request and cannot access the app.",

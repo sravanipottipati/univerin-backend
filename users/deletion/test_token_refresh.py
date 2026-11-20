@@ -41,7 +41,7 @@ class TokenRefreshSecurityTests(TestCase):
         with self.assertRaises(AuthenticationFailed):
             serializer.is_valid(raise_exception=True)
 
-    def test_pending_deletion_user_cannot_refresh_token(self):
+    def test_pending_deletion_user_can_refresh_token(self):
         user = self.create_user("9876546103")
 
         AccountDeletionRequest.objects.create(
@@ -52,8 +52,8 @@ class TokenRefreshSecurityTests(TestCase):
 
         serializer = self.refresh_serializer(user)
 
-        with self.assertRaises(AuthenticationFailed):
-            serializer.is_valid(raise_exception=True)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertIn("access", serializer.validated_data)
 
     def test_nonexistent_user_cannot_refresh_token(self):
         user = self.create_user("9876546104")
@@ -65,6 +65,29 @@ class TokenRefreshSecurityTests(TestCase):
             data={"refresh": str(token)}
         )
 
+        with self.assertRaises(AuthenticationFailed):
+            serializer.is_valid(raise_exception=True)
+
+
+    def test_processing_deletion_user_cannot_refresh_token(self):
+        user = self.create_user("9876546105")
+        AccountDeletionRequest.objects.create(
+            user=user,
+            account_type="buyer",
+            status="processing",
+        )
+        serializer = self.refresh_serializer(user)
+        with self.assertRaises(AuthenticationFailed):
+            serializer.is_valid(raise_exception=True)
+
+    def test_completed_deletion_user_cannot_refresh_token(self):
+        user = self.create_user("9876546106")
+        AccountDeletionRequest.objects.create(
+            user=user,
+            account_type="buyer",
+            status="completed",
+        )
+        serializer = self.refresh_serializer(user)
         with self.assertRaises(AuthenticationFailed):
             serializer.is_valid(raise_exception=True)
 
@@ -111,7 +134,7 @@ class TokenRefreshEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 401)
 
-    def test_pending_deletion_user_receives_401(self):
+    def test_pending_deletion_user_receives_200(self):
         user = self.create_user("9876546203")
 
         AccountDeletionRequest.objects.create(
@@ -122,7 +145,8 @@ class TokenRefreshEndpointTests(TestCase):
 
         response = self.post_refresh(user)
 
-        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.data)
 
     def test_nonexistent_user_receives_401(self):
         user = self.create_user("9876546204")
