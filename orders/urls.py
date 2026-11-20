@@ -1,7 +1,7 @@
 from .views import VendorRequestDeliveryView, CodCheckoutStatusView
 from django.urls import path
 from .views import RefundRequestView, AdminRefundView
-from .payment_views import create_payment_order, verify_payment, payment_failed, create_razorpay_only, place_order_after_payment, razorpay_checkout_status, recover_razorpay_checkout
+from .payment_views import payment_failed, create_razorpay_only, place_order_after_payment, razorpay_checkout_status, recover_razorpay_checkout
 from .views import (ClearNotificationsView,submit_return, PlaceOrderView, BuyerOrdersView,
                     VendorOrdersView, UpdateOrderStatusView, cancel_order,
                     OrderDetailView, NotificationListView,
@@ -44,8 +44,6 @@ urlpatterns = [
     # ─── COUPON ───────────────────────────────────────────────────────────────
     path('coupon/validate/',                     ValidateCouponView.as_view(),       name='validate-coupon'),
     # ─── PAYMENT ──────────────────────────────────────────────────────────────
-    path('payment/create/',                      create_payment_order,               name='create-payment'),
-    path('payment/verify/',                      verify_payment,                     name='verify-payment'),
     path('payment/failed/',                      payment_failed,                     name='payment-failed'),
     path('payment/create-razorpay/',             create_razorpay_only,               name='create-razorpay-only'),
     path('payment/place-after-payment/',         place_order_after_payment,          name='place-after-payment'),
