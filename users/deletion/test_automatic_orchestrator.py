@@ -102,3 +102,65 @@ class AutomaticOrchestratorTests(TestCase):
                 status="processing",
             ).exists()
         )
+
+    def test_interrupted_cleanup_is_not_retried(self):
+        from users.deletion.storage_adapter import FakeStorageAdapter
+        from users.deletion.automatic_orchestrator import (
+            AutomaticOrchestrationError,
+        )
+
+        with patch(
+            "users.deletion.automatic_orchestrator.CloudinaryStorageAdapter",
+            FakeStorageAdapter,
+        ), patch(
+            "users.deletion.automatic_orchestrator.execute_cleanup_job",
+            side_effect=RuntimeError("Simulated worker crash"),
+        ):
+            with self.assertRaises(RuntimeError):
+                process_automatic_deletion_with_assets(self.request.pk)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+        self.assertFalse(self.user.is_deleted)
+        self.assertEqual(self.user.profile_photo.name, self.reference)
+
+    def test_claimed_job_after_crash_is_not_retried(self):
+        from users.deletion.storage_adapter import FakeStorageAdapter
+        from users.deletion.cleanup_executor import execute_cleanup_job
+        from users.deletion.automatic_asset_cleanup import (
+            prepare_automatic_asset_cleanup,
+        )
+        from users.deletion.automatic_orchestrator import (
+            AutomaticOrchestrationError,
+        )
+
+        prepare_automatic_asset_cleanup(self.request.pk)
+
+        job = AccountDeletionAsset.objects.get(
+            deletion_request=self.request,
+        )
+
+        # Simulate a worker that claimed the job but crashed
+        # before recording the external storage outcome.
+        from users.deletion.job_claim import claim_cleanup_job
+
+        claim_cleanup_job(job.pk)
+
+        with patch(
+            "users.deletion.automatic_orchestrator.execute_cleanup_job"
+        ) as mock_execute:
+            with self.assertRaises(AutomaticOrchestrationError):
+                process_automatic_deletion_with_assets(self.request.pk)
+
+        mock_execute.assert_not_called()
+
+        job.refresh_from_db()
+        self.user.refresh_from_db()
+        self.request.refresh_from_db()
+
+        self.assertEqual(job.status, "processing")
+        self.assertIsNone(job.storage_deletion_confirmed_at)
+        self.assertTrue(self.user.is_active)
+        self.assertFalse(self.user.is_deleted)
+        self.assertEqual(self.request.status, "pending")
+        self.assertEqual(self.user.profile_photo.name, self.reference)
