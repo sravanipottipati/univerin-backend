@@ -82,6 +82,25 @@ class AccountDeletionReconciliationAudit(models.Model):
 
     explanation = models.TextField()
 
+    # Immutable asset identity captured during read-only verification.
+    verified_storage_reference = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+    )
+
+    verified_resource_type = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+    )
+
+    verified_storage_provider = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

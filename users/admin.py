@@ -113,3 +113,115 @@ class AccountDeletionRequestAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# Account deletion asset cleanup administration.
+# Read-only: no file deletion or cleanup finalization actions.
+from users.deletion.cleanup_models import AccountDeletionAsset
+
+
+@admin.register(AccountDeletionAsset)
+class AccountDeletionAssetAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "deletion_request",
+        "owner_type",
+        "field_name",
+        "status",
+        "attempts",
+        "updated_at",
+    )
+    list_filter = ("status", "owner_type", "created_at")
+    search_fields = (
+        "storage_reference",
+        "deletion_request__user__phone_number",
+    )
+    readonly_fields = (
+        "id",
+        "deletion_request",
+        "owner_type",
+        "field_name",
+        "storage_reference",
+        "resource_type",
+        "status",
+        "attempts",
+        "attempt_id",
+        "lease_expires_at",
+        "last_error",
+        "created_at",
+        "updated_at",
+        "completed_at",
+    )
+
+    def has_view_permission(self, request, obj=None):
+        return bool(
+            request.user.is_authenticated
+            and request.user.is_active
+            and request.user.is_staff
+            and getattr(request.user, "is_admin", False)
+        )
+
+    def has_module_permission(self, request):
+        return self.has_view_permission(request)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+# Account deletion reconciliation audit administration.
+# Read-only: audit entries cannot be created, changed, or deleted.
+from users.deletion.reconciliation_models import (
+    AccountDeletionReconciliationAudit,
+)
+
+
+@admin.register(AccountDeletionReconciliationAudit)
+class AccountDeletionReconciliationAuditAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "cleanup_job",
+        "administrator",
+        "decision",
+        "created_at",
+    )
+    list_filter = ("decision", "created_at")
+    search_fields = ("cleanup_job__id", "administrator__phone_number")
+    readonly_fields = (
+        "id",
+        "cleanup_job",
+        "attempt_id",
+        "administrator",
+        "decision",
+        "evidence_reference",
+        "explanation",
+        "verified_storage_reference",
+        "verified_resource_type",
+        "verified_storage_provider",
+        "created_at",
+    )
+
+    def has_view_permission(self, request, obj=None):
+        return bool(
+            request.user.is_authenticated
+            and request.user.is_active
+            and request.user.is_staff
+            and getattr(request.user, "is_admin", False)
+        )
+
+    def has_module_permission(self, request):
+        return self.has_view_permission(request)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

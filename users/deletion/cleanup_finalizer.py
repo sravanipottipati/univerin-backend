@@ -24,9 +24,20 @@ def finalize_cleanup_job(job_id, *, storage_result, attempt_id=None):
     # This legacy finalizer accepts caller-supplied confirmation.
     # Keep it available only for isolated tests until replaced
     # by a verified, attempt-bound production finalizer.
-    if not getattr(settings, "TESTING_ACCOUNT_DELETION_CLEANUP", False):
+    from django.db import connection
+
+    database_name = connection.settings_dict["NAME"]
+    isolated_test_mode = (
+        getattr(settings, "TESTING_ACCOUNT_DELETION_CLEANUP", False)
+        and database_name == "univerin_deletion_test_20261115"
+        and settings.DATABASES["default"].get("TEST", {}).get("NAME")
+            == database_name
+    )
+
+    if not isolated_test_mode:
         raise CleanupFinalizationError(
-            "Legacy cleanup finalization is disabled."
+            "Legacy cleanup finalization is restricted to "
+            "the isolated test database."
         )
 
     if not isinstance(storage_result, dict):
@@ -193,6 +204,61 @@ def finalize_verified_cleanup_job(
     if audit is None:
         raise CleanupFinalizationError(
             "Explicit deletion confirmation is required."
+        )
+
+    # Confirmation must reference a specific absence-verification audit.
+    try:
+        verification_id = uuid.UUID(str(audit.evidence_reference))
+    except (TypeError, ValueError, AttributeError):
+        raise CleanupFinalizationError(
+            "Confirmation has no valid verification reference."
+        ) from None
+
+    verification = AccountDeletionReconciliationAudit.objects.filter(
+        pk=verification_id,
+        cleanup_job=job,
+        attempt_id=supplied_attempt,
+        decision=(
+            AccountDeletionReconciliationAudit.Decision
+            .ASSET_ABSENT_OBSERVED
+        ),
+        created_at__lte=audit.created_at,
+    ).first()
+
+    if verification is None:
+        raise CleanupFinalizationError(
+            "Confirmation lacks matching asset-absence evidence."
+        )
+
+    # Independently validate the exact verified asset identity.
+    expected_storage = get_asset_policy(
+        job.owner_type,
+        job.field_name,
+    )["storage"]
+
+    if (
+        not verification.verified_storage_reference
+        or verification.verified_storage_reference != job.storage_reference
+        or verification.verified_resource_type != job.resource_type
+        or verification.verified_storage_provider != expected_storage
+    ):
+        raise CleanupFinalizationError(
+            "Verification evidence does not match the cleanup asset."
+        )
+
+    # Reject evidence superseded by a later storage observation.
+    if AccountDeletionReconciliationAudit.objects.filter(
+        cleanup_job=job,
+        attempt_id=supplied_attempt,
+        decision__in=[
+            AccountDeletionReconciliationAudit.Decision.ASSET_ABSENT_OBSERVED,
+            AccountDeletionReconciliationAudit.Decision.ASSET_STILL_EXISTS,
+            AccountDeletionReconciliationAudit.Decision.INCONCLUSIVE,
+        ],
+        created_at__gt=verification.created_at,
+    ).exists():
+        raise CleanupFinalizationError(
+            "Newer verification evidence requires administrator review."
         )
 
     # Validate current ownership and ensure the reference is not shared.

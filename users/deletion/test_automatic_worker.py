@@ -6,6 +6,7 @@ from django.test import TestCase, override_settings
 from users.models import User, AccountDeletionRequest
 
 
+@override_settings(TESTING_ACCOUNT_DELETION_CLEANUP=True)
 class AutomaticDeletionWorkerTests(TestCase):
 
     @override_settings(ACCOUNT_DELETION_AUTOMATIC_ENABLED=True)

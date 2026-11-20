@@ -13,3 +13,17 @@ staticfiles/*
 
 # Local backups containing sensitive configuration
 backups/
+
+# Local development backups and deletion test artifacts
+*.backup-*
+*.bak
+*.bak-*
+*.save
+*.before_*
+*.pre_safety_update
+deletion_http_test.sqlite3
+users/deletion_backup_*/
+
+*.backup
+*.bak_*
+deferred_payment_changes/

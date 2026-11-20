@@ -4,6 +4,7 @@ from users.models import User, AccountDeletionRequest
 from users.deletion.processor import process_automatic_deletion_request
 
 
+@override_settings(TESTING_ACCOUNT_DELETION_CLEANUP=True)
 class AutomaticDeletionProcessorTests(TestCase):
 
     def setUp(self):
@@ -238,3 +239,19 @@ class AutomaticDeletionProcessorTests(TestCase):
         self.assertEqual(vendor.wallet_balance, Decimal("250.00"))
         self.assertEqual(deletion_request.status, "pending")
         self.assertIsNone(deletion_request.completed_at)
+
+    @override_settings(
+        ACCOUNT_DELETION_AUTOMATIC_ENABLED=True,
+        ACCOUNT_DELETION_PRODUCTION_EXECUTION_ALLOWED=False,
+        TESTING_ACCOUNT_DELETION_CLEANUP=False,
+    )
+    def test_production_execution_flag_blocks_direct_processing(self):
+        with self.assertRaises(PermissionError):
+            process_automatic_deletion_request(self.request.pk)
+
+        self.buyer.refresh_from_db()
+        self.request.refresh_from_db()
+
+        self.assertTrue(self.buyer.is_active)
+        self.assertFalse(self.buyer.is_deleted)
+        self.assertEqual(self.request.status, "pending")

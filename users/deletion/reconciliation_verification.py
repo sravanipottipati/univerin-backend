@@ -226,6 +226,9 @@ def verify_cleanup_asset(
             administrator_id=administrator.pk,
             decision=decision_map[result.state],
             evidence_reference=result.evidence_reference[:500],
+            verified_storage_reference=expected_reference,
+            verified_resource_type=expected_resource_type,
+            verified_storage_provider=expected_storage,
             explanation=(
                 "Read-only storage observation: "
                 f"{result.state}. "

@@ -134,13 +134,36 @@ class VerifiedFinalizerTests(TestCase):
             is_enabled=True,
         )
 
-        confirmation = AccountDeletionReconciliationAudit.objects.create(
+        from django.utils import timezone
+        from users.deletion.reconciliation_service import (
+            confirm_cleanup_deletion,
+        )
+
+        # Simulate an uncertain cleanup attempt requiring reconciliation.
+        self.job.lease_expires_at = timezone.now()
+        self.job.save(update_fields=["lease_expires_at"])
+
+        verification = AccountDeletionReconciliationAudit.objects.create(
             cleanup_job=self.job,
             attempt_id=self.claimed.attempt_id,
             administrator=admin,
-            decision=AccountDeletionReconciliationAudit.Decision.DELETION_CONFIRMED,
-            evidence_reference="test-only-confirmation",
-            explanation="Simulated confirmation for isolated test.",
+            decision=(
+                AccountDeletionReconciliationAudit.Decision
+                .ASSET_ABSENT_OBSERVED
+            ),
+            verified_storage_reference="profile_photos/verified-test.jpg",
+            verified_resource_type="image",
+            verified_storage_provider="django",
+            evidence_reference="cloudinary:test-asset-absent",
+            explanation="Simulated read-only absence verification.",
+        )
+
+        confirmation = confirm_cleanup_deletion(
+            self.job.pk,
+            administrator=admin,
+            attempt_id=self.claimed.attempt_id,
+            verification_audit_id=verification.pk,
+            explanation="Administrator reviewed the verified absence evidence.",
         )
 
         finalized = finalize_verified_cleanup_job(
@@ -157,3 +180,116 @@ class VerifiedFinalizerTests(TestCase):
         self.assertEqual(self.job.status, "completed")
         self.assertFalse(bool(self.user.profile_photo))
         self.assertFalse(self.user.is_deleted)
+
+    def test_confirmation_without_verification_is_rejected(self):
+        from users.deletion.reconciliation_models import (
+            AccountDeletionReconciliationAccess,
+            AccountDeletionReconciliationAudit,
+        )
+
+        admin = User.objects.create_user(
+            phone_number="9876549694",
+            password="TestPassword123!",
+            user_type="buyer",
+        )
+        admin.is_staff = True
+        admin.is_admin = True
+        admin.save(update_fields=["is_staff", "is_admin"])
+
+        AccountDeletionReconciliationAccess.objects.create(
+            administrator=admin,
+            granted_by=admin,
+            is_enabled=True,
+        )
+
+        confirmation = AccountDeletionReconciliationAudit.objects.create(
+            cleanup_job=self.job,
+            attempt_id=self.claimed.attempt_id,
+            administrator=admin,
+            decision=(
+                AccountDeletionReconciliationAudit.Decision
+                .DELETION_CONFIRMED
+            ),
+            evidence_reference="unverified-confirmation",
+            explanation="Confirmation without verified absence evidence.",
+        )
+
+        with self.assertRaises(CleanupFinalizationError):
+            finalize_verified_cleanup_job(
+                self.job.pk,
+                administrator=admin,
+                attempt_id=self.claimed.attempt_id,
+                confirmation_audit_id=confirmation.pk,
+            )
+
+        self.job.refresh_from_db()
+        self.user.refresh_from_db()
+
+        self.assertEqual(self.job.status, "processing")
+        self.assertTrue(bool(self.user.profile_photo))
+
+
+    def test_finalizer_rejects_mismatched_asset_evidence(self):
+        from users.deletion.reconciliation_models import (
+            AccountDeletionReconciliationAccess,
+            AccountDeletionReconciliationAudit,
+        )
+
+        admin = User.objects.create_user(
+            phone_number="9876549695",
+            password="TestPassword123!",
+            full_name="Mismatch Evidence Administrator",
+            user_type="buyer",
+            is_staff=True,
+            is_admin=True,
+        )
+
+        AccountDeletionReconciliationAccess.objects.create(
+            administrator=admin,
+            granted_by=admin,
+            is_enabled=True,
+        )
+
+        verification = AccountDeletionReconciliationAudit.objects.create(
+            cleanup_job=self.job,
+            attempt_id=self.claimed.attempt_id,
+            administrator=admin,
+            decision=(
+                AccountDeletionReconciliationAudit.Decision
+                .ASSET_ABSENT_OBSERVED
+            ),
+            verified_storage_reference="different/asset.jpg",
+            verified_resource_type="image",
+            verified_storage_provider="django",
+            evidence_reference="test-mismatched-asset",
+            explanation="Simulated absence evidence for another asset.",
+        )
+
+        confirmation = AccountDeletionReconciliationAudit.objects.create(
+            cleanup_job=self.job,
+            attempt_id=self.claimed.attempt_id,
+            administrator=admin,
+            decision=(
+                AccountDeletionReconciliationAudit.Decision
+                .DELETION_CONFIRMED
+            ),
+            evidence_reference=str(verification.pk),
+            explanation="Test confirmation referencing mismatched evidence.",
+        )
+
+        with self.assertRaisesRegex(
+            CleanupFinalizationError,
+            "Verification evidence does not match the cleanup asset",
+        ):
+            finalize_verified_cleanup_job(
+                self.job.pk,
+                administrator=admin,
+                attempt_id=self.claimed.attempt_id,
+                confirmation_audit_id=confirmation.pk,
+            )
+
+        self.job.refresh_from_db()
+        self.user.refresh_from_db()
+
+        self.assertEqual(self.job.status, "processing")
+        self.assertTrue(bool(self.user.profile_photo))

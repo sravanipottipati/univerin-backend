@@ -76,6 +76,40 @@ def process_automatic_deletion_request(request_id):
     if not settings.ACCOUNT_DELETION_AUTOMATIC_ENABLED:
         raise PermissionError("Automatic account deletion is disabled.")
 
+    # Check execution authorization independently of the management command.
+    from django.db import connection
+
+    database_name = connection.settings_dict["NAME"]
+
+    isolated_test_mode = (
+        getattr(settings, "TESTING_ACCOUNT_DELETION_CLEANUP", False)
+        and database_name == "univerin_deletion_test_20261115"
+        and settings.DATABASES["default"].get("TEST", {}).get("NAME")
+            == database_name
+    )
+
+    production_authorized = (
+        not settings.DEBUG
+        and getattr(
+            settings,
+            "ACCOUNT_DELETION_PRODUCTION_EXECUTION_ALLOWED",
+            False,
+        )
+        and getattr(
+            settings,
+            "ACCOUNT_DELETION_RAILWAY_ENVIRONMENT",
+            "",
+        ) == "production"
+        and database_name != "univerin_deletion_test_20261115"
+        and settings.DATABASES["default"].get("TEST", {}).get("NAME")
+            != database_name
+    )
+
+    if not (isolated_test_mode or production_authorized):
+        raise PermissionError(
+            "Automatic deletion execution is not authorized."
+        )
+
     return _process_locked_deletion_request(
         request_id,
         automatic=True,
