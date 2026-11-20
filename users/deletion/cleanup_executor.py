@@ -180,9 +180,15 @@ def execute_cleanup_job(job_id, *, adapter=None):
                 "manual reconciliation required."
             )
 
-        locked_job.lease_expires_at = timezone.now()
+        confirmed_at = timezone.now()
+        locked_job.storage_deletion_confirmed_at = confirmed_at
+        locked_job.lease_expires_at = confirmed_at
         locked_job.save(
-            update_fields=["lease_expires_at", "updated_at"]
+            update_fields=[
+                "storage_deletion_confirmed_at",
+                "lease_expires_at",
+                "updated_at",
+            ]
         )
 
     return {

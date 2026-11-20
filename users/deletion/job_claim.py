@@ -39,6 +39,7 @@ def claim_cleanup_job(job_id):
     job.attempt_id = uuid.uuid4()
     job.lease_expires_at = timezone.now() + timedelta(minutes=15)
     job.last_error = ""
+    job.storage_deletion_confirmed_at = None
 
     job.save(
         update_fields=[
@@ -47,6 +48,7 @@ def claim_cleanup_job(job_id):
             "attempt_id",
             "lease_expires_at",
             "last_error",
+            "storage_deletion_confirmed_at",
             "updated_at",
         ]
     )

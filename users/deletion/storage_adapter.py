@@ -88,12 +88,12 @@ class CloudinaryStorageAdapter:
         try:
             if storage == "django":
 
-                deleted = default_storage.delete(reference)
-
-                if deleted is not True:
-                    raise StorageCleanupError(
-                        "Django storage did not confirm deletion."
-                    )
+                # Django Storage.delete() does not guarantee a
+                # boolean return value. Successful invocation only
+                # indicates that the deletion was attempted without
+                # a reported exception. Independent provider
+                # verification is still required before finalization.
+                default_storage.delete(reference)
 
             elif storage == "cloudinary":
 

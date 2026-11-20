@@ -126,3 +126,46 @@ class AccountDeletionReconciliationAudit(models.Model):
 
     def __str__(self):
         return f"{self.cleanup_job_id}: {self.decision}"
+
+
+
+class AutomaticDeletionVerificationAudit(models.Model):
+    """
+    Immutable evidence from an automatic worker's read-only
+    storage verification. Never represents administrator approval.
+    """
+
+    class State(models.TextChoices):
+        ABSENT = "absent", "Absent"
+        EXISTS = "exists", "Exists"
+        UNKNOWN = "unknown", "Unknown"
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=__import__("uuid").uuid4,
+        editable=False,
+    )
+
+    cleanup_job = models.ForeignKey(
+        "users.AccountDeletionAsset",
+        on_delete=models.PROTECT,
+        related_name="automatic_verifications",
+    )
+
+    attempt_id = models.UUIDField()
+    state = models.CharField(max_length=20, choices=State.choices)
+    storage_reference = models.TextField()
+    resource_type = models.CharField(max_length=20)
+    storage_provider = models.CharField(max_length=50)
+    evidence_reference = models.CharField(
+        max_length=500, blank=True, default=""
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValueError("Automatic verification audit is immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Automatic verification audit cannot be deleted.")

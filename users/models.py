@@ -165,4 +165,5 @@ from users.deletion.reconciliation_models import (
 
 from users.deletion.reconciliation_models import (
     AccountDeletionReconciliationAudit,
+    AutomaticDeletionVerificationAudit,
 )

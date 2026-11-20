@@ -13,9 +13,9 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 
 from users.models import AccountDeletionRequest
-from users.deletion.processor import (
-    DeletionBlockedError,
-    process_automatic_deletion_request,
+from users.deletion.processor import DeletionBlockedError
+from users.deletion.automatic_orchestrator import (
+    process_automatic_deletion_with_assets,
 )
 
 
@@ -95,7 +95,7 @@ class Command(BaseCommand):
 
         for request_id in request_ids:
             try:
-                result = process_automatic_deletion_request(request_id)
+                result = process_automatic_deletion_with_assets(request_id)
                 if result.status == "completed":
                     completed += 1
                     self.stdout.write(

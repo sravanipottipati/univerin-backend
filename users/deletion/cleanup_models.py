@@ -66,6 +66,13 @@ class AccountDeletionAsset(models.Model):
     )
     last_error = models.TextField(blank=True, default="")
 
+    # Set only after the approved storage adapter reports success.
+    # Must be tied to the current cleanup attempt.
+    storage_deletion_confirmed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(null=True, blank=True)
