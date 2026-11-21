@@ -164,3 +164,29 @@ class AutomaticOrchestratorTests(TestCase):
         self.assertFalse(self.user.is_deleted)
         self.assertEqual(self.request.status, "pending")
         self.assertEqual(self.user.profile_photo.name, self.reference)
+
+    def test_real_adapter_rejected_in_isolated_database(self):
+        """
+        Real Cloudinary deletion must never execute against
+        the isolated account-deletion test database.
+        """
+        from users.deletion.cleanup_executor import CleanupExecutionError
+
+        with patch(
+            "users.deletion.storage_adapter.default_storage.delete"
+        ) as mock_delete:
+            with self.assertRaisesMessage(
+                CleanupExecutionError,
+                "Production storage deletion is not authorized",
+            ):
+                process_automatic_deletion_with_assets(self.request.pk)
+
+        mock_delete.assert_not_called()
+
+        self.user.refresh_from_db()
+        self.request.refresh_from_db()
+
+        self.assertTrue(self.user.is_active)
+        self.assertFalse(self.user.is_deleted)
+        self.assertEqual(self.request.status, "pending")
+        self.assertEqual(self.user.profile_photo.name, self.reference)
