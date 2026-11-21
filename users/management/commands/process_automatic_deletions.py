@@ -29,11 +29,22 @@ class Command(BaseCommand):
         parser.add_argument(
             "--execute",
             action="store_true",
-            help="Execute eligible deletions in the isolated test database.",
+            help="Execute eligible deletions when explicitly authorized.",
+        )
+        parser.add_argument(
+            "--request-id",
+            type=str,
+            default=None,
+            help="Process only the specified pending deletion request.",
         )
 
     def handle(self, *args, **options):
         if not options["execute"]:
+            if options["request_id"]:
+                raise CommandError(
+                    "--request-id requires --execute; "
+                    "the preview command does not support filtering."
+                )
             self.stdout.write("Automatic deletion worker: DRY RUN")
             call_command(
                 "preview_automatic_deletions",
@@ -83,9 +94,27 @@ class Command(BaseCommand):
                 "for this database."
             )
 
+        pending_requests = AccountDeletionRequest.objects.filter(
+            status="pending"
+        )
+
+        if options["request_id"]:
+            from uuid import UUID
+
+            try:
+                request_id = UUID(options["request_id"])
+            except (ValueError, AttributeError, TypeError):
+                raise CommandError("Invalid deletion request UUID.")
+
+            pending_requests = pending_requests.filter(pk=request_id)
+
+            if not pending_requests.exists():
+                raise CommandError(
+                    "Specified deletion request was not found or is not pending."
+                )
+
         request_ids = list(
-            AccountDeletionRequest.objects
-            .filter(status="pending")
+            pending_requests
             .order_by("requested_at")
             .values_list("pk", flat=True)
         )
