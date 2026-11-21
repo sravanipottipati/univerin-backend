@@ -277,3 +277,10 @@ ACCOUNT_DELETION_PRODUCTION_EXECUTION_ALLOWED = (
 ACCOUNT_DELETION_RAILWAY_ENVIRONMENT = os.environ.get(
     "RAILWAY_ENVIRONMENT_NAME", ""
 )
+
+
+# Razorpay automatic refunds — disabled by default.
+# Enable only after production safety validation.
+RAZORPAY_AUTO_REFUNDS_ENABLED = (
+    os.environ.get("RAZORPAY_AUTO_REFUNDS_ENABLED", "False") == "True"
+)
