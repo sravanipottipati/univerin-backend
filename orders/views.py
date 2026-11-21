@@ -8,6 +8,7 @@ from .serializers import PlaceOrderSerializer, OrderSerializer
 from vendors.models import Vendor, Product
 from wallet.models import WalletTransaction
 from orders.dispatch_service import create_next_delivery_offer, expire_delivery_offer
+from orders.refund_service import transition_order_with_refund, RefundError
 from django.utils import timezone
 
 
@@ -440,6 +441,24 @@ class UpdateOrderStatusView(APIView):
             allowed = ['accepted', 'rejected', 'preparing']
             if new_status not in allowed:
                 return Response({'error': f'Invalid status. Choose from: {allowed}'}, status=400)
+            if new_status == 'rejected':
+                try:
+                    order = transition_order_with_refund(
+                        order.id, target_status='rejected'
+                    )
+                except RefundError as exc:
+                    return Response({'error': str(exc)}, status=409)
+            elif new_status == 'accepted' and order.status != 'placed':
+                return Response(
+                    {'error': 'Only placed orders can be accepted'},
+                    status=409,
+                )
+            elif new_status == 'preparing' and order.status != 'accepted':
+                return Response(
+                    {'error': 'Only accepted orders can be prepared'},
+                    status=409,
+                )
+
             # Record platform fee when accepted
             if new_status == 'accepted' and order.status == 'placed':
                 WalletTransaction.objects.create(
@@ -454,8 +473,9 @@ class UpdateOrderStatusView(APIView):
                 new_status == 'accepted' and order.status == 'placed'
             )
 
-            order.status = new_status
-            order.save()
+            if new_status != 'rejected':
+                order.status = new_status
+                order.save()
 
             # Start dispatch only on the first Seller acceptance.
             if was_first_acceptance:
@@ -500,8 +520,12 @@ class UpdateOrderStatusView(APIView):
                 return Response({'error': 'Buyers can only cancel orders'}, status=400)
             if order.status not in ['placed']:
                 return Response({'error': 'Can only cancel orders that are just placed'}, status=400)
-            order.status = 'cancelled'
-            order.save()
+            try:
+                order = transition_order_with_refund(
+                    order.id, target_status='cancelled'
+                )
+            except RefundError as exc:
+                return Response({'error': str(exc)}, status=409)
             # Notify vendor of cancellation
             create_notification(
                 user=order.vendor.user,
@@ -941,11 +965,17 @@ def cancel_order(request, order_id):
     """Cancel an order"""
     try:
         order = Order.objects.get(id=order_id, buyer=request.user)
-        if order.status in ['placed', 'pending']:
-            order.status = 'cancelled'
-            order.save()
-            return Response({'message': 'Order cancelled successfully'})
-        return Response({'error': 'Order cannot be cancelled'}, status=400)
+        if order.status != 'placed':
+            return Response(
+                {'error': 'Order cannot be cancelled'}, status=400
+            )
+        try:
+            transition_order_with_refund(
+                order.id, target_status='cancelled'
+            )
+        except RefundError as exc:
+            return Response({'error': str(exc)}, status=409)
+        return Response({'message': 'Order cancelled successfully'})
     except Order.DoesNotExist:
         return Response({'error': 'Order not found'}, status=404)
 

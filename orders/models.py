@@ -280,6 +280,30 @@ class Refund(models.Model):
     requested_at = models.DateTimeField(auto_now_add=True)
     updated_at   = models.DateTimeField(auto_now=True)
 
+    # Razorpay refund tracking.
+    razorpay_payment_id = models.CharField(
+        max_length=100, blank=True, null=True
+    )
+    razorpay_refund_id = models.CharField(
+        max_length=100, blank=True, null=True, unique=True
+    )
+    amount_paise = models.PositiveBigIntegerField(null=True, blank=True)
+    processing_state = models.CharField(
+        max_length=20,
+        choices=[
+            ('not_started', 'Not Started'),
+            ('reserved', 'Reserved'),
+            ('initiated', 'Initiated'),
+            ('completed', 'Completed'),
+            ('failed', 'Failed'),
+            ('requires_review', 'Requires Review'),
+        ],
+        default='not_started',
+    )
+    initiated_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    failure_reason = models.TextField(blank=True, default='')
+
     def __str__(self):
         return f"Refund for {self.order.order_number} - {self.status}"
 
