@@ -821,7 +821,7 @@ def submit_return(request, order_id):
         type='order',
     )
     return Response({
-        'message': 'Return request submitted successfully! Refund will be processed in 5-7 business days.',
+        'message': 'Return request submitted successfully. Our team will review your request and provide an update.',
         'order_id': str(order.id),
         'reason': reason,
     })
